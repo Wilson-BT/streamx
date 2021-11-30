@@ -309,6 +309,8 @@ object ConfigConst {
 
   val DOCKER_IMAGE_NAMESPACE_DEFAULT = "streamx"
 
+  val STREAMX_HADOOP_USER_NAME = "streamx.hadoop-user-name"
+
   lazy val DOCKER_IMAGE_NAMESPACE: String = SystemPropertyUtils.get(KEY_DOCKER_IMAGE_NAMESPACE, DOCKER_IMAGE_NAMESPACE_DEFAULT)
 
 
@@ -323,7 +325,7 @@ object ConfigConst {
     println("\n       WebSite:  http://www.streamxhub.com            ")
     println("       GitHub :  https://github.com/streamxhub/streamx  ")
     println("       Gitee  :  https://gitee.com/streamxhub/streamx   ")
-    println("       Ver    :  1.2.0                                  ")
+    println("       Ver    :  1.2.1                                  ")
     println(s"       Info   :  $info                                 ")
     println(s"       Time   :  ${LocalDateTime.now}              \n\n")
   }
