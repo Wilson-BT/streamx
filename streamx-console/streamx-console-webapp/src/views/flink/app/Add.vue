@@ -97,7 +97,7 @@
             placeholder="Please enter Kubernetes clusterId"
             @change="handleClusterId"
             allowClear
-            v-decorator="[ 'clusterId', {rules: [{ required: true, message: 'Kubernetes clusterId is required' }] }]">
+            v-decorator="[ 'clusterId', {rules: [{ required: true, validator: handleChecKubernetesClusterId }] }]">
             <template v-if="executionMode === 5">
               <a-dropdown slot="addonAfter" placement="bottomRight">
                 <a-menu slot="overlay" trigger="['click', 'hover']">
@@ -318,7 +318,7 @@
           :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
           <a-select
             placeholder="Please select resource from"
-            @change="handleChangeResourceForm"
+            @change="handleChangeResourceFrom"
             v-decorator="[ 'resourceFrom' , {rules: [{ required: true, message: 'resource from is required' }]} ]">
             <a-select-option value="cvs">
               <svg-icon role="img" name="github"/>
@@ -1702,6 +1702,7 @@ export default {
       this.form.getFieldDecorator('resolveOrder', {initialValue: 0})
       this.form.getFieldDecorator('k8sRestExposedType', {initialValue: 0})
       this.form.getFieldDecorator('restartSize', {initialValue: 0})
+      this.executionMode = null
       listFlinkEnv().then((resp) => {
         if (resp.data.length > 0) {
           this.flinkEnvs = resp.data
@@ -1738,7 +1739,7 @@ export default {
       this.handleK8sPodTemplateEditor()
     },
 
-    handleChangeResourceForm(value) {
+    handleChangeResourceFrom(value) {
       this.resourceFrom = value
     },
 
@@ -2036,6 +2037,21 @@ export default {
           }).catch((err) => {
             callback(new Error('Hadoop environment initialization failed, please check the environment settings'))
           })
+        } else {
+          callback()
+        }
+      }
+    },
+
+    handleChecKubernetesClusterId(rule, value, callback) {
+      const clusterIdReg = /^[a-z]([-a-z0-9]*[a-z0-9])?$/
+      if (value === null || value === undefined || value === '') {
+        callback(new Error('Kubernetes clusterId is required'))
+      } else {
+        if (!clusterIdReg.test(value)) {
+          callback(new Error("Kubernetes clusterId is invalid, clusterId must consist of lower case alphanumeric characters or '-', start with an alphabetic character, and end with an alphanumeric character.Please check"))
+        } else {
+          callback()
         }
       }
     },
