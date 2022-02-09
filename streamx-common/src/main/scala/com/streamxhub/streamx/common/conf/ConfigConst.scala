@@ -197,7 +197,11 @@ object ConfigConst {
 
   val KEY_KAFKA_START_FROM_TIMESTAMP = "timestamp"
 
-  val REDIS_PREFIX = "redis."
+  val REDIS_PREFIX = "redis.sink"
+
+  val REDIS_CONNECT_TYPE = "connectType"
+
+  val DEFAULT_REDIS_CONNECT_TYPE = "jedisPool"
 
   val KEY_ALIAS = "alias"
 
@@ -354,7 +358,7 @@ object ConfigConst {
     println("\n       WebSite:  http://www.streamxhub.com            ")
     println("       GitHub :  https://github.com/streamxhub/streamx  ")
     println("       Gitee  :  https://gitee.com/streamxhub/streamx   ")
-    println("       Ver    :  1.2.1                                  ")
+    println("       Ver    :  1.2.2                                  ")
     println(s"       Info   :  $info                                 ")
     println(s"       Time   :  ${LocalDateTime.now}              \n\n")
   }
