@@ -28,6 +28,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.streamxhub.streamx.common.conf.ConfigConst;
 import com.streamxhub.streamx.common.conf.Workspace;
 import com.streamxhub.streamx.common.domain.FlinkMemorySize;
+import com.streamxhub.streamx.common.enums.ApplicationType;
 import com.streamxhub.streamx.common.enums.DevelopmentMode;
 import com.streamxhub.streamx.common.enums.ExecutionMode;
 import com.streamxhub.streamx.common.enums.ResolveOrder;
@@ -57,7 +58,6 @@ import com.streamxhub.streamx.console.core.entity.Message;
 import com.streamxhub.streamx.console.core.entity.Project;
 import com.streamxhub.streamx.console.core.entity.SavePoint;
 import com.streamxhub.streamx.console.core.enums.AppExistsState;
-import com.streamxhub.streamx.console.core.enums.ApplicationType;
 import com.streamxhub.streamx.console.core.enums.CandidateType;
 import com.streamxhub.streamx.console.core.enums.ChangedType;
 import com.streamxhub.streamx.console.core.enums.CheckPointType;
@@ -86,17 +86,19 @@ import com.streamxhub.streamx.flink.core.conf.ParameterCli;
 import com.streamxhub.streamx.flink.kubernetes.K8sFlinkTrkMonitor;
 import com.streamxhub.streamx.flink.kubernetes.model.FlinkMetricCV;
 import com.streamxhub.streamx.flink.kubernetes.model.TrkId;
-import com.streamxhub.streamx.flink.submit.FlinkSubmitHelper;
-import com.streamxhub.streamx.flink.submit.domain.KubernetesSubmitParam;
-import com.streamxhub.streamx.flink.submit.domain.StopRequest;
-import com.streamxhub.streamx.flink.submit.domain.StopResponse;
-import com.streamxhub.streamx.flink.submit.domain.SubmitRequest;
-import com.streamxhub.streamx.flink.submit.domain.SubmitResponse;
+import com.streamxhub.streamx.flink.submit.FlinkSubmitter;
+import com.streamxhub.streamx.flink.submit.bean.KubernetesSubmitParam;
+import com.streamxhub.streamx.flink.submit.bean.StopRequest;
+import com.streamxhub.streamx.flink.submit.bean.StopResponse;
+import com.streamxhub.streamx.flink.submit.bean.SubmitRequest;
+import com.streamxhub.streamx.flink.submit.bean.SubmitResponse;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.flink.configuration.JobManagerOptions;
+import org.apache.flink.configuration.RestOptions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -119,6 +121,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -1069,7 +1072,7 @@ public class ApplicationServiceImpl extends ServiceImpl<ApplicationMapper, Appli
                 String customSavepoint = "";
                 if (isKubernetesApp(application)) {
                     customSavepoint = StringUtils.isNotBlank(appParam.getSavePoint()) ? appParam.getSavePoint() :
-                        FlinkSubmitHelper
+                        FlinkSubmitter
                             .extractDynamicOptionAsJava(application.getDynamicOptions())
                             .getOrDefault(ConfigConst.KEY_FLINK_SAVEPOINT_PATH(), "");
                 }
@@ -1081,10 +1084,11 @@ public class ApplicationServiceImpl extends ServiceImpl<ApplicationMapper, Appli
                     appParam.getSavePointed(),
                     appParam.getDrain(),
                     customSavepoint,
-                    application.getK8sNamespace()
+                    application.getK8sNamespace(),
+                    application.getDynamicOptions()
                 );
 
-                StopResponse stopResponse = FlinkSubmitHelper.stop(stopInfo);
+                StopResponse stopResponse = FlinkSubmitter.stop(stopInfo);
                 if (stopResponse != null && stopResponse.savePointDir() != null) {
                     String savePointDir = stopResponse.savePointDir();
                     log.info("savePoint path:{}", savePointDir);
@@ -1230,6 +1234,7 @@ public class ApplicationServiceImpl extends ServiceImpl<ApplicationMapper, Appli
                 assert executionMode != null;
                 //3) client
                 switch (executionMode) {
+                    case STANDALONE:
                     case YARN_PER_JOB:
                     case KUBERNETES_NATIVE_SESSION:
                     case KUBERNETES_NATIVE_APPLICATION:
@@ -1287,7 +1292,7 @@ public class ApplicationServiceImpl extends ServiceImpl<ApplicationMapper, Appli
                 resolveOrder,
                 application.getJobName(),
                 appConf,
-                application.getApplicationType().getName(),
+                application.getApplicationType(),
                 getSavePointed(appParam),
                 appParam.getFlameGraph() ? getFlameGraph(application) : null,
                 option.toString(),
@@ -1298,7 +1303,7 @@ public class ApplicationServiceImpl extends ServiceImpl<ApplicationMapper, Appli
                 kubernetesSubmitParam
             );
 
-            SubmitResponse submitResponse = FlinkSubmitHelper.submit(submitRequest);
+            SubmitResponse submitResponse = FlinkSubmitter.submit(submitRequest);
 
             assert submitResponse != null;
 
@@ -1311,6 +1316,12 @@ public class ApplicationServiceImpl extends ServiceImpl<ApplicationMapper, Appli
                 if (tmMemory != null) {
                     application.setTmMemory(FlinkMemorySize.parse(tmMemory).getMebiBytes());
                 }
+            }
+            if (ExecutionMode.isStandaloneMode(application.getExecutionModeEnum())) {
+                Optional<String> restUrl = Optional.ofNullable(submitResponse.flinkConfig().get(RestOptions.ADDRESS.key()));
+                application.setRestUrl(restUrl.orElseGet(() -> submitResponse.flinkConfig().getOrDefault(JobManagerOptions.ADDRESS.key(),
+                    null)));
+                application.setRestPort(Integer.valueOf(submitResponse.flinkConfig().getOrDefault(RestOptions.PORT.key(), null)));
             }
             application.setAppId(submitResponse.clusterId());
             if (StringUtils.isNoneEmpty(submitResponse.jobId())) {
