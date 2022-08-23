@@ -1,14 +1,11 @@
 /*
- * Copyright (c) 2019 The StreamX Project
+ * Copyright 2019 The StreamX Project
  *
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *    https://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,7 +16,6 @@
 
 package com.streamxhub.streamx.console.core.controller;
 
-import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.streamxhub.streamx.console.base.domain.RestRequest;
 import com.streamxhub.streamx.console.base.domain.RestResponse;
 import com.streamxhub.streamx.console.core.entity.FlameGraph;
@@ -28,6 +24,8 @@ import com.streamxhub.streamx.console.core.enums.NoticeType;
 import com.streamxhub.streamx.console.core.metrics.flink.JvmProfiler;
 import com.streamxhub.streamx.console.core.service.FlameGraphService;
 import com.streamxhub.streamx.console.core.service.MessageService;
+
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
@@ -66,12 +64,12 @@ public class MetricsController {
     public RestResponse notice(Integer type, RestRequest request) {
         NoticeType noticeType = NoticeType.of(type);
         IPage<Message> pages = messageService.getUnRead(noticeType, request);
-        return RestResponse.create().data(pages);
+        return RestResponse.success(pages);
     }
 
     @PostMapping("delnotice")
     public RestResponse delNotice(Long id) {
-        return RestResponse.create().data(messageService.removeById(id));
+        return RestResponse.success(messageService.removeById(id));
     }
 
     @PostMapping("report")
@@ -87,9 +85,9 @@ public class MetricsController {
                 flameGraphService.save(flameGraph);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error(e.getMessage(), e);
         }
-        return RestResponse.create();
+        return RestResponse.success();
     }
 
     @PostMapping("flamegraph")

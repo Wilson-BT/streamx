@@ -2,9 +2,19 @@ name: Maven Package Test
 
 on:
   push:
-    branches: [ dev ]
+    branches:
+      - dev
+    paths-ignore:
+      - '**.md'
+      - 'deploy/**'
+      - 'script/**'
+      - 'streamx-console/streamx-console-webapp/**'
   pull_request:
-    branches: [ dev ]
+    paths-ignore:
+      - '**.md'
+      - 'deploy/**'
+      - 'script/**'
+      - 'streamx-console/streamx-console-webapp/**'
 
 jobs:
   build:
@@ -20,5 +30,6 @@ jobs:
           distribution: 'adopt'
           cache: maven
       - name: Build with Maven
-        run: mvn -B package -DskipTests --file pom.xml
-
+        run: mvn -B clean package -T 4 -DskipTests
+      - name: Test with Maven
+        run: mvn -B test -pl '!streamx-plugin/streamx-jvm-profiler,!streamx-console/streamx-console-service' -am

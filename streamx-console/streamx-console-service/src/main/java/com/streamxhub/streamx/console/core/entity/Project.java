@@ -1,14 +1,11 @@
 /*
- * Copyright (c) 2019 The StreamX Project
+ * Copyright 2019 The StreamX Project
  *
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *    https://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,19 +16,21 @@
 
 package com.streamxhub.streamx.console.core.entity;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.streamxhub.streamx.common.conf.Workspace;
 import com.streamxhub.streamx.common.util.CommandUtils;
 import com.streamxhub.streamx.console.base.util.CommonUtils;
 import com.streamxhub.streamx.console.base.util.WebUtils;
 import com.streamxhub.streamx.console.core.enums.GitAuthorizedError;
 import com.streamxhub.streamx.console.core.service.SettingService;
+
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.transport.CredentialsProvider;
@@ -50,11 +49,13 @@ import java.util.List;
 /**
  * @author benjobs
  */
+@Slf4j
 @Data
 @TableName("t_flink_project")
 public class Project implements Serializable {
     @TableId(value = "ID", type = IdType.AUTO)
     private Long id;
+    private Long teamId;
 
     private String name;
 
@@ -65,10 +66,9 @@ public class Project implements Serializable {
      */
     private String branches;
 
-    @TableField("LASTBUILD")
     private Date lastBuild;
 
-    private String username;
+    private String userName;
 
     private String password;
     /**
@@ -78,13 +78,14 @@ public class Project implements Serializable {
 
     private String pom;
 
+    private String buildArgs;
+
     private Date date;
 
     private String description;
     /**
      * 构建状态: -2:发生变更,需重新build -1:未构建 0:正在构建 1:构建成功 2:构建失败
      */
-    @TableField("BUILDSTATE")
     private Integer buildState;
 
     /**
@@ -104,8 +105,12 @@ public class Project implements Serializable {
      */
     private transient String appSource;
 
+    private transient List<Long> teamIdList;
+
     @JsonIgnore
     private transient SettingService settingService;
+
+    private transient String teamName;
 
     /**
      * 获取项目源码路径
@@ -138,7 +143,7 @@ public class Project implements Serializable {
 
     @JsonIgnore
     public CredentialsProvider getCredentialsProvider() {
-        return new UsernamePasswordCredentialsProvider(this.username, this.password);
+        return new UsernamePasswordCredentialsProvider(this.userName, this.password);
     }
 
     @JsonIgnore
@@ -157,8 +162,8 @@ public class Project implements Serializable {
     public List<String> getAllBranches() {
         try {
             Collection<Ref> refList;
-            if (CommonUtils.notEmpty(username, password)) {
-                UsernamePasswordCredentialsProvider pro = new UsernamePasswordCredentialsProvider(username, password);
+            if (CommonUtils.notEmpty(userName, password)) {
+                UsernamePasswordCredentialsProvider pro = new UsernamePasswordCredentialsProvider(userName, password);
                 refList = Git.lsRemoteRepository().setRemote(url).setCredentialsProvider(pro).call();
             } else {
                 refList = Git.lsRemoteRepository().setRemote(url).call();
@@ -173,7 +178,7 @@ public class Project implements Serializable {
             }
             return branchList;
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error(e.getMessage(), e);
         }
         return Collections.emptyList();
     }
@@ -181,8 +186,8 @@ public class Project implements Serializable {
     @JsonIgnore
     public GitAuthorizedError gitCheck() {
         try {
-            if (CommonUtils.notEmpty(username, password)) {
-                UsernamePasswordCredentialsProvider credentialsProvider = new UsernamePasswordCredentialsProvider(username, password);
+            if (CommonUtils.notEmpty(userName, password)) {
+                UsernamePasswordCredentialsProvider credentialsProvider = new UsernamePasswordCredentialsProvider(userName, password);
                 Git.lsRemoteRepository().setRemote(url).setCredentialsProvider(credentialsProvider).call();
             } else {
                 Git.lsRemoteRepository().setRemote(url).call();
@@ -217,16 +222,14 @@ public class Project implements Serializable {
     }
 
     @JsonIgnore
-    public List<String> getMavenBuildCmd() {
-        String buildHome = this.getAppSource().getAbsolutePath();
-        if (CommonUtils.notEmpty(this.getPom())) {
-            buildHome = new File(buildHome.concat("/").concat(this.getPom()))
-                .getParentFile()
-                .getAbsolutePath();
-        }
+    public List<String> getMavenArgs() {
         String mvn = "mvn";
         try {
-            CommandUtils.execute("mvn --version");
+            if (CommonUtils.isWindows()) {
+                CommandUtils.execute("mvn.cmd --version");
+            } else {
+                CommandUtils.execute("mvn --version");
+            }
         } catch (Exception e) {
             if (CommonUtils.isWindows()) {
                 mvn = WebUtils.getAppHome().concat("/bin/mvnw.cmd");
@@ -234,7 +237,19 @@ public class Project implements Serializable {
                 mvn = WebUtils.getAppHome().concat("/bin/mvnw");
             }
         }
-        return Arrays.asList("cd ".concat(buildHome), String.format("%s clean install -DskipTests", mvn));
+        return Arrays.asList(mvn.concat(" clean package -DskipTests ").concat(StringUtils.isEmpty(this.buildArgs) ? "" : this.buildArgs.trim()));
+    }
+
+    @JsonIgnore
+    public String getMavenWorkHome() {
+        String buildHome = this.getAppSource().getAbsolutePath();
+        if (CommonUtils.notEmpty(this.getPom())) {
+            buildHome = new File(buildHome.concat("/")
+                .concat(this.getPom()))
+                .getParentFile()
+                .getAbsolutePath();
+        }
+        return buildHome;
     }
 
     @JsonIgnore
@@ -244,7 +259,7 @@ public class Project implements Serializable {
             getLogHeader("maven install"),
             getName(),
             getBranches(),
-            getMavenBuildCmd()
+            getMavenArgs()
         );
     }
 

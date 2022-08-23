@@ -1,14 +1,11 @@
 /*
- * Copyright (c) 2019 The StreamX Project
+ * Copyright 2019 The StreamX Project
  *
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *    https://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,28 +16,36 @@
 
 package com.streamxhub.streamx.console.system.service.impl;
 
+import com.streamxhub.streamx.console.base.domain.RestRequest;
+import com.streamxhub.streamx.console.base.util.ShaHashUtils;
+import com.streamxhub.streamx.console.core.service.CommonService;
+import com.streamxhub.streamx.console.system.dao.UserMapper;
+import com.streamxhub.streamx.console.system.entity.Menu;
+import com.streamxhub.streamx.console.system.entity.Role;
+import com.streamxhub.streamx.console.system.entity.Team;
+import com.streamxhub.streamx.console.system.entity.TeamUser;
+import com.streamxhub.streamx.console.system.entity.User;
+import com.streamxhub.streamx.console.system.entity.UserRole;
+import com.streamxhub.streamx.console.system.service.MenuService;
+import com.streamxhub.streamx.console.system.service.RoleService;
+import com.streamxhub.streamx.console.system.service.TeamService;
+import com.streamxhub.streamx.console.system.service.TeamUserService;
+import com.streamxhub.streamx.console.system.service.UserRoleService;
+import com.streamxhub.streamx.console.system.service.UserService;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.StringPool;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.streamxhub.streamx.console.base.domain.RestRequest;
-import com.streamxhub.streamx.console.base.util.ShaHashUtils;
-import com.streamxhub.streamx.console.system.dao.UserMapper;
-import com.streamxhub.streamx.console.system.entity.Menu;
-import com.streamxhub.streamx.console.system.entity.Role;
-import com.streamxhub.streamx.console.system.entity.User;
-import com.streamxhub.streamx.console.system.entity.UserRole;
-import com.streamxhub.streamx.console.system.service.MenuService;
-import com.streamxhub.streamx.console.system.service.RoleService;
-import com.streamxhub.streamx.console.system.service.UserRoleService;
-import com.streamxhub.streamx.console.system.service.UserService;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -65,6 +70,15 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Autowired
     private MenuService menuService;
 
+    @Autowired
+    private CommonService commonService;
+
+    @Autowired
+    private TeamService teamService;
+
+    @Autowired
+    private TeamUserService teamUserService;
+
     @Override
     public User findByName(String username) {
         return baseMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getUsername, username));
@@ -75,16 +89,47 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         Page<User> page = new Page<>();
         page.setCurrent(request.getPageNum());
         page.setSize(request.getPageSize());
+
+        String nowUser = commonService.getCurrentUser().getUsername();
+
+        // 如果用户有选择某个组，则只查询该组下的员工
+        if (StringUtils.isNotEmpty(user.getTeamId())) {
+            List<Long> teamIdList = new ArrayList<>();
+            teamIdList.add(Long.valueOf(user.getTeamId()));
+            user.setTeamIdList(teamIdList);
+        } else if (!userRoleService.isManageTeam(nowUser)) {
+            // 如果用户没有选择组，则只查询用户拥有权限的组
+            List<Long> teamIdList = teamUserService.getTeamIdList();
+            user.setTeamIdList(teamIdList);
+        }
+
         IPage<User> resPage = this.baseMapper.findUserDetail(page, user);
 
         if (resPage != null && !resPage.getRecords().isEmpty()) {
             List<User> users = resPage.getRecords();
             users.forEach(u -> {
+                if (u.getUsername().equals(nowUser)) {
+                    u.setIsNow(true);
+                }
+
                 List<Role> roleList = roleService.findUserRole(u.getUsername());
                 String roleIds = roleList.stream().map((iter) -> iter.getRoleId().toString()).collect(Collectors.joining(","));
                 String roleNames = roleList.stream().map(Role::getRoleName).collect(Collectors.joining(","));
                 u.setRoleId(roleIds);
                 u.setRoleName(roleNames);
+
+                if (userRoleService.isManageTeam(u.getUsername())) {
+                    u.setTeamId("0");
+                    u.setTeamName("All Team");
+                    return;
+                }
+
+                List<Team> teamUserList = teamService.findTeamByUser(u.getUsername());
+                String teamIds = teamUserList.stream().map((iter) -> iter.getTeamId().toString()).collect(Collectors.joining(","));
+                String teamNames = teamUserList.stream().map(Team::getTeamName).collect(Collectors.joining(","));
+                u.setTeamId(teamIds);
+                u.setTeamName(teamNames);
+
             });
             resPage.setRecords(users);
         }
@@ -117,6 +162,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 保存用户角色
         String[] roles = user.getRoleId().split(StringPool.COMMA);
         setUserRoles(user, roles);
+
+        if (null != user.getTeamId()) {
+            // 保存团队用户
+            String[] teams = user.getTeamId().split(StringPool.COMMA);
+            setUserTeams(user, teams);
+        }
+
     }
 
     @Override
@@ -126,9 +178,17 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         user.setPassword(null);
         user.setModifyTime(new Date());
         updateById(user);
+
         userRoleService.deleteUserRolesByUserId(new String[]{user.getUserId().toString()});
         String[] roles = user.getRoleId().split(StringPool.COMMA);
         setUserRoles(user, roles);
+
+        teamUserService.deleteTeamUsersByUserId(new String[]{user.getUserId().toString()});
+        if (null != user.getTeamId()) {
+            String[] teams = user.getTeamId().split(StringPool.COMMA);
+            setUserTeams(user, teams);
+        }
+
     }
 
     @Override
@@ -190,12 +250,35 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         return permissionList.stream().map(Menu::getPerms).collect(Collectors.toSet());
     }
 
+    @Override
+    public List<User> getNoTokenUser() {
+        List<User> users = this.baseMapper.getNoTokenUser();
+        if (!users.isEmpty()) {
+            users.forEach(u -> {
+                u.setPassword(null);
+                u.setSalt(null);
+                u.setRoleId(null);
+            });
+        }
+        return users;
+    }
+
     private void setUserRoles(User user, String[] roles) {
         Arrays.stream(roles).forEach(roleId -> {
             UserRole ur = new UserRole();
             ur.setUserId(user.getUserId());
             ur.setRoleId(Long.valueOf(roleId));
             this.userRoleService.save(ur);
+        });
+    }
+
+    private void setUserTeams(User user, String[] teams) {
+        Arrays.stream(teams).forEach(teamId -> {
+            TeamUser teamUser = new TeamUser();
+            teamUser.setUserId(user.getUserId());
+            teamUser.setTeamId(Long.valueOf(teamId));
+            teamUser.setCreateTime(new Date());
+            this.teamUserService.save(teamUser);
         });
     }
 }

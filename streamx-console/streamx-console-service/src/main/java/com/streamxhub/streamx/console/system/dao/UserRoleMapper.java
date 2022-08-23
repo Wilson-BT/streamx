@@ -1,14 +1,11 @@
 /*
- * Copyright (c) 2019 The StreamX Project
+ * Copyright 2019 The StreamX Project
  *
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *    https://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,9 +16,12 @@
 
 package com.streamxhub.streamx.console.system.dao;
 
-import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.streamxhub.streamx.console.system.entity.UserRole;
+
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
 
 public interface UserRoleMapper extends BaseMapper<UserRole> {
 
@@ -44,4 +44,6 @@ public interface UserRoleMapper extends BaseMapper<UserRole> {
      * @date 2019年03月04日17:47:16
      */
     Boolean deleteByRoleId(@Param("roleId") Long roleId);
+
+    List<Long> selectRoleIdList(@Param("userId") Long userId);
 }

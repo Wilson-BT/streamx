@@ -1,14 +1,11 @@
 /*
- * Copyright (c) 2019 The StreamX Project
+ * Copyright 2019 The StreamX Project
  *
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *    https://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,14 +16,9 @@
 
 package com.streamxhub.streamx.console.core.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.streamxhub.streamx.console.base.domain.Constant;
 import com.streamxhub.streamx.console.base.domain.RestRequest;
-import com.streamxhub.streamx.console.base.exception.ServiceException;
+import com.streamxhub.streamx.console.base.exception.InternalException;
 import com.streamxhub.streamx.console.base.util.CommonUtils;
 import com.streamxhub.streamx.console.base.util.SortUtils;
 import com.streamxhub.streamx.console.core.dao.SavePointMapper;
@@ -36,6 +28,12 @@ import com.streamxhub.streamx.console.core.entity.SavePoint;
 import com.streamxhub.streamx.console.core.enums.CheckPointType;
 import com.streamxhub.streamx.console.core.service.FlinkEnvService;
 import com.streamxhub.streamx.console.core.service.SavePointService;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -72,7 +70,7 @@ public class SavePointServiceImpl extends ServiceImpl<SavePointMapper, SavePoint
         assert flinkEnv != null;
         int cpThreshold = Integer.parseInt(
             flinkEnv.convertFlinkYamlAsMap()
-                .getOrDefault("state.checkpoints.num-retained", "1")
+                .getOrDefault("state.checkpoints.num-retained", "5")
         );
 
         if (CheckPointType.CHECKPOINT.equals(CheckPointType.of(entity.getType()))) {
@@ -104,7 +102,7 @@ public class SavePointServiceImpl extends ServiceImpl<SavePointMapper, SavePoint
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Boolean delete(Long id, Application application) throws ServiceException {
+    public Boolean delete(Long id, Application application) throws InternalException {
         SavePoint savePoint = getById(id);
         try {
             if (CommonUtils.notEmpty(savePoint.getPath())) {
@@ -113,7 +111,7 @@ public class SavePointServiceImpl extends ServiceImpl<SavePointMapper, SavePoint
             removeById(id);
             return true;
         } catch (Exception e) {
-            throw new ServiceException(e.getMessage());
+            throw new InternalException(e.getMessage());
         }
     }
 
@@ -128,6 +126,10 @@ public class SavePointServiceImpl extends ServiceImpl<SavePointMapper, SavePoint
     public void removeApp(Application application) {
         Long appId = application.getId();
         baseMapper.removeApp(application.getId());
-        application.getFsOperator().delete(application.getWorkspace().APP_SAVEPOINTS().concat("/").concat(appId.toString()));
+        try {
+            application.getFsOperator().delete(application.getWorkspace().APP_SAVEPOINTS().concat("/").concat(appId.toString()));
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
+        }
     }
 }

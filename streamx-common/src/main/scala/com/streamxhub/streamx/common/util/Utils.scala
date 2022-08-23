@@ -1,14 +1,11 @@
 /*
- * Copyright (c) 2019 The StreamX Project
+ * Copyright 2019 The StreamX Project
  *
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *    https://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,6 +25,7 @@ import scala.collection.JavaConversions._
 import scala.util.{Failure, Success, Try}
 
 object Utils {
+
 
   private[this] lazy val OS = System.getProperty("os.name").toLowerCase
 
@@ -92,9 +90,11 @@ object Utils {
   /*
    * Mimicking the try-with-resource syntax of Java-8+
    */
-  def tryWithResource[R, T <: AutoCloseable](handle: T)(func: T => R): R = {
+  def tryWithResource[R, T <: AutoCloseable](handle: T)(func: T => R)(implicit excFunc: Throwable => R = null): R = {
     try {
       func(handle)
+    } catch {
+      case e: Throwable if excFunc != null => excFunc(e)
     } finally {
       if (handle != null) {
         handle.close()
@@ -102,21 +102,34 @@ object Utils {
     }
   }
 
-  /*
-  * Mimicking the try-with-resource syntax of Java-8+,
-  * and also provides callback function param for handing
-  * Exception.
-  */
-  def tryWithResourceException[R, T <: AutoCloseable](handle: T)(func: T => R)(excFunc: Throwable => R): R = {
-    try {
-      func(handle)
-    } catch {
-      case e: Throwable => excFunc(e)
-    } finally {
-      if (handle != null) {
-        handle.close()
+  def close(closeable: AutoCloseable*)(implicit func: Throwable => Unit = null): Unit = {
+    closeable.foreach(c => {
+      try {
+        if (c != null) {
+          c.close()
+        }
+      } catch {
+        case e: Throwable if func != null => func(e)
       }
+    })
+  }
+
+  /**
+   * calculate the percentage of num1 / num2, the result range from 0 to 100, with one small digit reserve.
+   */
+  def calPercent(num1: Long, num2: Long): Double =
+    if (num1 == 0 || num2 == 0) 0.0
+    else (num1.toDouble / num2.toDouble * 100).formatted("%.1f").toDouble
+
+
+  def hashCode(elements: Any*): Int = {
+    if (elements == null) return 0
+    var result = 1
+    for (elem <- elements) {
+      val hash = if (elem == null) 0 else elem.hashCode
+      result = 31 * result + hash
     }
+    result
   }
 
 }

@@ -1,21 +1,27 @@
 <template>
   <span :class="'svg-icon-'.concat(size).concat(border? ' svg-icon-border':'')" class="anticon">
+    <alarm v-if="name==='alarm'"></alarm>
+    <testalarm v-if="name==='testalarm'"></testalarm>
     <analyse v-if="name==='analyse'"></analyse>
     <flink v-if="name==='flink'"></flink>
     <spark v-if="name==='spark'"></spark>
     <fql v-if="name==='fql'"></fql>
     <flinksql v-if="name==='flinksql'"></flinksql>
     <maven v-if="name==='maven'"></maven>
+    <mvnpass v-if="name==='mvnpass'"></mvnpass>
     <workspace v-if="name==='workspace'"></workspace>
     <threshold v-if="name==='threshold'"></threshold>
     <http v-if="name==='http'"></http>
     <deploy v-if="name==='deploy'"></deploy>
     <stream v-if="name==='stream'"></stream>
     <format v-if="name==='format'"></format>
-    <dingding v-if="name==='dingding'"></dingding>
+    <dingtalk v-if="name==='dingtalk'"></dingtalk>
+    <lark v-if="name==='lark'"></lark>
     <mail v-if="name==='mail'"></mail>
     <sms v-if="name==='sms'"></sms>
+    <message v-if="name==='message'"></message>
     <wechat v-if="name==='wechat'"></wechat>
+    <wecom v-if="name==='wecom'"></wecom>
     <host v-if="name==='host'"></host>
     <keys v-if="name==='keys'"></keys>
     <port v-if="name==='port'"></port>
@@ -34,7 +40,7 @@
     <upload v-if="name==='upload'"></upload>
     <plus v-if="name==='plus'"></plus>
     <flame v-if="name==='flame'"></flame>
-    <code v-if="name==='icode'"></code>
+    <icode v-if="name==='code'"></icode>
     <copy v-if="name==='copy'"></copy>
     <swap v-if="name==='swap'"></swap>
     <github v-if="name==='github'"></github>
@@ -43,6 +49,7 @@
     <moon v-if="name==='moon'"></moon>
     <user v-if="name==='user'"></user>
     <docker v-if="name==='docker'"></docker>
+    <namespace v-if="name==='namespace'"></namespace>
     <auth v-if="name==='auth'"></auth>
     <password v-if="name==='password'"></password>
   </span>
@@ -50,6 +57,8 @@
 
 <script>
 import {
+  alarm,
+  testalarm,
   analyse,
   deploy,
   flink,
@@ -57,15 +66,19 @@ import {
   fql,
   http,
   maven,
+  mvnpass,
   spark,
   stream,
   workspace,
   threshold,
   format,
-  dingding,
+  dingtalk,
+  lark,
   mail,
   sms,
+  message,
   wechat,
+  wecom,
   host,
   keys,
   port,
@@ -84,7 +97,7 @@ import {
   upload,
   plus,
   flame,
-  code,
+  icode,
   copy,
   swap,
   github,
@@ -93,6 +106,7 @@ import {
   moon,
   user,
   docker,
+  namespace,
   auth,
   password
 } from '@/core/icons'
@@ -100,6 +114,8 @@ import {
 export default {
   name: 'SvgIcon',
   components: {
+    alarm,
+    testalarm,
     analyse,
     deploy,
     flink,
@@ -107,15 +123,19 @@ export default {
     fql,
     http,
     maven,
+    mvnpass,
     spark,
     stream,
     workspace,
     threshold,
     format,
-    dingding,
+    dingtalk,
+    lark,
     mail,
     sms,
+    message,
     wechat,
+    wecom,
     host,
     keys,
     port,
@@ -134,7 +154,7 @@ export default {
     upload,
     plus,
     flame,
-    code,
+    icode,
     copy,
     swap,
     github,
@@ -143,6 +163,7 @@ export default {
     moon,
     user,
     docker,
+    namespace,
     auth,
     password
   },

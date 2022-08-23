@@ -1,14 +1,11 @@
 /*
- * Copyright (c) 2019 The StreamX Project
+ * Copyright 2019 The StreamX Project
  *
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *    https://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -71,6 +68,8 @@ object ConfigConst {
 
   val KEY_SECURITY_KERBEROS_ENABLE = "security.kerberos.login.enable"
 
+  val KEY_SECURITY_KERBEROS_DEBUG = "security.kerberos.login.debug"
+
   val KEY_SECURITY_KERBEROS_KEYTAB = "security.kerberos.login.keytab"
 
   val KEY_SECURITY_KERBEROS_PRINCIPAL = "security.kerberos.login.principal"
@@ -110,9 +109,11 @@ object ConfigConst {
 
   val KEY_FLINK_APP_NAME = "pipeline.name"
 
-  val KEY_YARN_APP_QUEUE = "yarn.application.queue"
+  val KEY_YARN_APP_ID = "yarn.application.id"
 
-  val KEY_FLINK_SAVEPOINT_PATH = "execution.savepoint.path"
+  val KEY_YARN_APP_NAME = "yarn.application.name"
+
+  val KEY_YARN_APP_QUEUE = "yarn.application.queue"
 
   // --checkpoints--
   val KEY_FLINK_CHECKPOINTS_ENABLE = "flink.checkpoints.enable"
@@ -132,6 +133,8 @@ object ConfigConst {
   val KEY_FLINK_CHECKPOINTS_MIN_PAUSEBETWEEN = "flink.checkpoints.minPauseBetween"
 
   //---state---
+
+  val KEY_FLINK_STATE_SAVEPOINTS_DIR = "flink.state.savepoints.dir"
 
   val KEY_FLINK_STATE_CHECKPOINTS_DIR = "flink.state.checkpoints.dir"
 
@@ -197,11 +200,6 @@ object ConfigConst {
 
   val KEY_KAFKA_START_FROM_TIMESTAMP = "timestamp"
 
-  val REDIS_PREFIX = "redis.sink"
-
-  val REDIS_CONNECT_TYPE = "connectType"
-
-  val DEFAULT_REDIS_CONNECT_TYPE = "jedisPool"
 
   val KEY_ALIAS = "alias"
 
@@ -222,7 +220,7 @@ object ConfigConst {
 
   val KEY_JDBC_INSERT_BATCH = "batch.size"
 
-  val KEY_JDBC_INSERT_BATCH_DELAYTIME = "batch.delaytime"
+  val KEY_JDBC_INSERT_BATCH_DELAYTIME = "batch.delayTime"
 
   val DEFAULT_JDBC_INSERT_BATCH = 1
 
@@ -255,89 +253,15 @@ object ConfigConst {
   val KEY_INFLUX_FLUSH_DURATION = "flush.duration"
 
   /**
-   * about clickhouse
-   */
-  val CLICKHOUSE_SINK_PREFIX = "clickhouse.sink"
-
-  val CLICKHOUSE_HOSTS = "hosts"
-
-  val CLICKHOUSE_USER = "user"
-
-  val CLICKHOUSE_PASSWORD = "password"
-
-  val CLICKHOUSE_TARGET_TABLE = "targetTable"
-
-
-  val HTTP_SINK_PREFIX = "http.sink"
-
-  /**
-   * sink threshold and failover...
-   */
-  val KEY_SINK_THRESHOLD_BUFFER_SIZE: String = "threshold.bufferSize"
-
-  val KEY_SINK_THRESHOLD_NUM_WRITERS: String = "threshold.numWriters"
-
-  val KEY_SINK_THRESHOLD_QUEUE_CAPACITY: String = "threshold.queueCapacity"
-
-  val KEY_SINK_THRESHOLD_DELAY_TIME: String = "threshold.delayTime"
-
-  val KEY_SINK_THRESHOLD_REQ_TIMEOUT: String = "threshold.requestTimeout"
-
-  val KEY_SINK_THRESHOLD_RETRIES: String = "threshold.retries"
-
-  val KEY_SINK_THRESHOLD_SUCCESS_CODE: String = "threshold.successCode"
-
-
-  val KEY_SINK_FAILOVER_TABLE: String = "failover.table"
-
-  val KEY_SINK_FAILOVER_STORAGE: String = "failover.storage"
-
-
-  val DEFAULT_SINK_REQUEST_TIMEOUT = 2000
-
-  val DEFAULT_HTTP_SUCCESS_CODE = 200
-
-  val DEFAULT_SINK_THRESHOLD_QUEUE_CAPACITY = 10000
-
-  val DEFAULT_SINK_THRESHOLD_DELAY_TIME = 1000L
-
-  val DEFAULT_SINK_THRESHOLD_BUFFER_SIZE = 1000
-
-  val DEFAULT_SINK_THRESHOLD_RETRIES = 3
-
-  val DEFAULT_SINK_THRESHOLD_NUM_WRITERS: Int = Runtime.getRuntime.availableProcessors()
-
-  /**
-   * about config es
-   */
-  val ES_PREFIX = "es.sink."
-
-  val KEY_ES_AUTH_USER = "es.auth.user"
-
-  val KEY_ES_AUTH_PASSWORD = "es.auth.password"
-
-  val KEY_ES_REST_MAX_RETRY = "es.rest.max.retry.timeout"
-
-  val KEY_ES_REST_CONTENT_TYPE = "es.rest.content.type"
-
-  val KEY_ES_CONN_REQ_TIME_OUT = "es.connect.request.timeout"
-
-  val KEY_ES_CONN_TIME_OUT = "es.connect.timeout"
-
-  val KEY_ES_CLUSTER_NAME = "es.cluster.name"
-
-  val KEY_ES_BULK_PREFIX = "bulk.flush."
-
-  val KEY_ES_CLIENT_TRANSPORT_SNIFF = "client.transport.sniff"
-
-  /**
    * flink config key
    */
   val KEY_FLINK_APPLICATION_ARGS = "$internal.application.program-args"
 
   val KEY_FLINK_APPLICATION_MAIN_CLASS = "$internal.application.main"
 
-  val KEY_FLINK_TOTAL_PROCESS_MEMORY = "jobmanager.memory.process.size"
+  val KEY_FLINK_JM_PROCESS_MEMORY = "jobmanager.memory.process.size"
+
+  val KEY_FLINK_TM_PROCESS_MEMORY = "taskmanager.memory.process.size"
 
   val KEY_FLINK_TOTAL_MEMORY = "jobmanager.memory.flink.size"
 
@@ -348,6 +272,7 @@ object ConfigConst {
   val STREAMX_FLINKSQL_CLIENT_CLASS = "com.streamxhub.streamx.flink.cli.SqlClient"
 
   def printLogo(info: String): Unit = {
+    // scalastyle:off println
     println("\n\n                 .+.                                ")
     println("           _____/ /_________  ____ _____ ___  _  __     ")
     println("          / ___/ __/ ___/ _ \\/ __ `/ __ `__ \\| |/_/   ")
@@ -358,9 +283,10 @@ object ConfigConst {
     println("\n       WebSite:  http://www.streamxhub.com            ")
     println("       GitHub :  https://github.com/streamxhub/streamx  ")
     println("       Gitee  :  https://gitee.com/streamxhub/streamx   ")
-    println("       Ver    :  1.2.2                                  ")
+    println("       Ver    :  1.2.4                                  ")
     println(s"       Info   :  $info                                 ")
     println(s"       Time   :  ${LocalDateTime.now}              \n\n")
+    // scalastyle:on println
   }
 
 }

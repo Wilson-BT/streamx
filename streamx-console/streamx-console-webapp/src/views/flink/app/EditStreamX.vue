@@ -6,13 +6,12 @@
     <a-form
       @submit="handleSubmit"
       :form="form"
-      v-if="app!=null">
+      v-if="app != null">
 
       <a-form-item
         label="Development Mode"
         :label-col="{lg: {span: 5}, sm: {span: 7}}"
         :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
-
         <a-alert
           v-if="app['jobType'] === 1"
           type="info" >
@@ -27,6 +26,35 @@
             <svg-icon name="fql" style="color: #108ee9"/>&nbsp;Flink SQL
           </template>
         </a-alert>
+      </a-form-item>
+
+      <a-form-item
+        label="Application Type"
+        :label-col="{lg: {span: 5}, sm: {span: 7}}"
+        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+        <a-alert
+          type="info">
+          <template slot="message">
+            <svg-icon name="flink" style="color: #108ee9"/>&nbsp;&nbsp;StreamX Flink
+          </template>
+        </a-alert>
+      </a-form-item>
+
+      <a-form-item
+        label="Flink Version"
+        :label-col="{lg: {span: 5}, sm: {span: 7}}"
+        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+        <a-select
+          placeholder="Flink Version"
+          v-decorator="[ 'versionId', {rules: [{ required: true, message: 'Flink Version is required' }] }]"
+          @change="handleFlinkVersion">>
+          <a-select-option
+            v-for="(v,index) in flinkEnvs"
+            :key="`flink_version_${index}`"
+            :value="v.id">
+            {{ v.flinkName }}
+          </a-select-option>
+        </a-select>
       </a-form-item>
 
       <a-form-item
@@ -47,23 +75,6 @@
         </a-select>
       </a-form-item>
 
-      <a-form-item
-        label="Flink Version"
-        :label-col="{lg: {span: 5}, sm: {span: 7}}"
-        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
-        <a-select
-          placeholder="Flink Version"
-          v-decorator="[ 'versionId', {rules: [{ required: true, message: 'Flink Version is required' }] }]"
-          @change="handleFlinkVersion">>
-          <a-select-option
-            v-for="(v,index) in flinkEnvs"
-            :key="`flink_version_${index}`"
-            :value="v.id">
-            {{ v.flinkName }}
-          </a-select-option>
-        </a-select>
-      </a-form-item>
-
       <template v-if="executionMode === 1">
         <a-form-item
           label="Flink Cluster"
@@ -73,9 +84,28 @@
             placeholder="Flink Cluster"
             v-decorator="[ 'flinkClusterId', {rules: [{ required: true, message: 'Flink Cluster is required' }] }]">>
             <a-select-option
-              v-for="(v,index) in flinkClusters"
+              v-for="(v,index) in getExecutionCluster(executionMode)"
               :key="`cluster_${index}`"
               :value="v.id">
+              {{ v.clusterName }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+      </template>
+
+      <template v-if="executionMode === 3">
+        <a-form-item
+          label="Yarn Session ClusterId"
+          :label-col="{lg: {span: 5}, sm: {span: 7}}"
+          :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+          <a-select
+            allowClear
+            placeholder="Please enter Yarn Session clusterId"
+            v-decorator="[ 'yarnSessionClusterId', {rules: [{ required: true, message: 'Flink Cluster is required' }] }]">>
+            <a-select-option
+              v-for="(v,index) in getExecutionCluster(executionMode)"
+              :key="`cluster_${index}`"
+              :value="v.clusterId">
               {{ v.clusterName }}
             </a-select-option>
           </a-select>
@@ -104,6 +134,7 @@
         </a-form-item>
 
         <a-form-item
+          v-if="app.executionMode === 6 || executionMode === 6"
           label="Kubernetes ClusterId"
           :label-col="{lg: {span: 5}, sm: {span: 7}}"
           :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
@@ -111,6 +142,7 @@
             type="text"
             placeholder="Please enter Kubernetes clusterId"
             allowClear
+            @change="handleClusterId"
             v-decorator="[ 'clusterId', {rules: [{ required: true, message: 'Kubernetes clusterId is required' }] }]">
             <template v-if="(executionMode == null && app.executionMode === 5) || (executionMode !== null && executionMode === 5)">
               <a-dropdown slot="addonAfter" placement="bottomRight">
@@ -123,6 +155,24 @@
               </a-dropdown>
             </template>
           </a-input>
+        </a-form-item>
+
+        <a-form-item
+          v-if="app.executionMode === 5 || executionMode === 5"
+          label="Kubernetes ClusterId"
+          :label-col="{lg: {span: 5}, sm: {span: 7}}"
+          :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+          <a-select
+            allowClear
+            placeholder="Please enter Kubernetes clusterId"
+            v-decorator="[ 'clusterId', {rules: [{ required: true, message: 'Flink Cluster is required' }] }]">>
+            <a-select-option
+              v-for="(v,index) in getExecutionCluster(executionMode)"
+              :key="`cluster_${index}`"
+              :value="v.clusterId">
+              {{ v.clusterName }}
+            </a-select-option>
+          </a-select>
         </a-form-item>
       </template>
 
@@ -218,7 +268,33 @@
           :wrapper-col="{lg: {span: 16}, sm: {span: 17} }"
           class="form-required"
           style="margin-top: 10px">
+
           <div class="sql-box" id="flink-sql" :class="'syntax-' + controller.flinkSql.success"></div>
+
+          <a-button-group class="flinksql-tool">
+            <a-button
+              class="flinksql-tool-item"
+              type="primary"
+              size="small"
+              icon="check"
+              @click="handleVerifySql">Verify
+            </a-button>
+            <a-button
+              class="flinksql-tool-item"
+              size="small"
+              type="default"
+              icon="thunderbolt"
+              @click.native="handleFormatSql">Format
+            </a-button>
+            <a-button
+              class="flinksql-tool-item"
+              type="default"
+              size="small"
+              icon="fullscreen"
+              @click="handleBigScreenOpen">Full Screen
+            </a-button>
+          </a-button-group>
+
           <p class="conf-desc" style="margin-bottom: -25px;margin-top: -5px">
             <span class="sql-desc" v-if="!controller.flinkSql.success">
               {{ controller.flinkSql.errorMsg }}
@@ -229,27 +305,6 @@
               </span>
             </span>
           </p>
-
-          <a-icon
-            class="format-sql"
-            type="align-left"
-            title="Format SQL"
-            @click.native="handleFormatSql"/>
-
-          <a-icon
-            class="big-screen"
-            type="fullscreen"
-            title="Full Screen"
-            two-tone-color="#4a9ff5"
-            @click="handleBigScreenOpen()" />
-
-          <a-button
-            type="primary"
-            class="verify-sql"
-            @click="handleVerifySql()">
-            Verify
-          </a-button>
-
         </a-form-item>
 
         <a-form-item
@@ -262,11 +317,16 @@
               key="pom"
               tab="Maven pom">
               <div class="pom-box syntax-true" style="height: 300px"></div>
+              <a-button
+                type="primary"
+                class="apply-pom"
+                @click="handleApplyPom()">
+                Apply
+              </a-button>
             </a-tab-pane>
             <a-tab-pane
               key="jar"
               tab="Upload Jar">
-
               <template v-if="(executionMode == null && (app.executionMode === 5 || app.executionMode === 6)) || (executionMode !== null && (executionMode === 5 || executionMode === 6))">
                 <a-select
                   mode="multiple"
@@ -291,7 +351,7 @@
                 :showUploadList="loading"
                 :customRequest="handleCustomRequest"
                 :beforeUpload="handleBeforeUpload">
-                <div style="height: 266px">
+                <div :style="{height: (executionMode === 5 || executionMode === 6) ? '234px' : '266px'}">
                   <p
                     class="ant-upload-drag-icon"
                     style="padding-top: 40px">
@@ -313,13 +373,6 @@
               </a-upload-dragger>
             </a-tab-pane>
           </a-tabs>
-
-          <a-button
-            type="primary"
-            class="apply-pom"
-            @click="handleApplyPom()">
-            Apply
-          </a-button>
 
           <div
             v-if="dependency.length > 0 || uploadJars.length > 0"
@@ -643,6 +696,405 @@
           placeholder="Number of slots per TaskManager"
           v-decorator="['slot']" />
       </a-form-item>
+
+      <a-form-item
+        label="Fault Restart Size"
+        :label-col="{lg: {span: 5}, sm: {span: 7}}"
+        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }"
+        v-show="(executionMode === null && app.executionMode !== 5 && app.executionMode !== 6) || (executionMode !== null && executionMode !== 5 && executionMode !== 6)">
+        <a-input-number
+          :min="1"
+          :step="1"
+          placeholder="restart max size"
+          v-decorator="['restartSize']" />
+      </a-form-item>
+
+      <a-form-item
+        label="CheckPoint Failure Options"
+        :label-col="{lg: {span: 5}, sm: {span: 7}}"
+        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }"
+        v-show="(executionMode === null && app.executionMode !== 5 && app.executionMode !== 6) || (executionMode !== null && executionMode !== 5 && executionMode !== 6)">
+        <a-input-group compact>
+          <a-input-number
+            :min="1"
+            :step="1"
+            placeholder="checkpoint failure rate interval"
+            v-decorator="['cpMaxFailureInterval',{ rules: [ { validator: handleCheckCheckPoint , trigger:'change'} ]}]"
+            style="width: calc(33% - 70px)"/>
+          <a-button style="width: 70px">
+            minute
+          </a-button>
+          <a-input-number
+            :min="1"
+            :step="1"
+            placeholder="max failures per interval"
+            v-decorator="['cpFailureRateInterval',{ rules: [ { validator: handleCheckCheckPoint , trigger: 'change'} ]}]"
+            style="width: calc(33% - 70px); margin-left: 1%"/>
+          <a-button style="width: 70px">
+            count
+          </a-button>
+          <a-select
+            placeholder="trigger action"
+            allowClear
+            v-decorator="['cpFailureAction',{ rules: [ { validator: handleCheckCheckPoint , trigger: 'change'} ]}]"
+            style="width: 32%;margin-left: 1%">
+            <a-select-option
+              v-for="(o,index) in cpTriggerAction"
+              :key="`cp_trigger_${index}`"
+              :value="o.value">
+              <a-icon :type="o.value === 1?'alert':'sync'"/> {{ o.name }}
+            </a-select-option>
+          </a-select>
+        </a-input-group>
+
+        <p class="conf-desc" style="margin-bottom: -15px;margin-top: -3px">
+          <span class="note-info" style="margin-bottom: 12px">
+            <a-tag color="#2db7f5" class="tag-note">Note</a-tag>
+            Operation after checkpoint failure, e.g:<br>
+            Within <span class="note-elem">5 minutes</span>(checkpoint failure rate interval), if the number of checkpoint failures reaches <span class="note-elem">10</span> (max failures per interval),action will be triggered(alert or restart job)
+          </span>
+        </p>
+      </a-form-item>
+
+      <!-- <a-form-item
+        label="Alert Email List"
+        :label-col="{lg: {span: 5}, sm: {span: 7}}"
+        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+        <a-input
+          type="text"
+          placeholder="Please enter email,separate multiple emails with comma(,)"
+          allowClear
+          v-decorator="[ 'alertEmail',{ rules: [ { validator: handleCheckAlertEmail} ]} ]">
+          <svg-icon name="mail" slot="prefix"/>
+        </a-input>
+      </a-form-item> -->
+
+      <!--告警方式-->
+      <a-form-item
+        label="Fault Alert Template"
+        :label-col="{lg: {span: 5}, sm: {span: 7}}"
+        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+        <a-select
+          placeholder="Alert Template"
+          allowClear
+          v-decorator="['alertId', {rules: [{ required: false}] }]">
+          <a-select-option
+            v-for="(o, index) in alerts"
+            :key="`alertType_${index}`"
+            :value="o.id">
+            {{ o.alertName }}
+          </a-select-option>
+        </a-select>
+      </a-form-item>
+
+      <!-- <template>
+        <a-form-item
+          label="Fault Alert Type"
+          :label-col="{lg: {span: 5}, sm: {span: 7}}"
+          :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+          <a-select
+            placeholder="Alert Type"
+            mode="multiple"
+            @change="handleChangeAlertType"
+            v-decorator="[ 'alertType', {rules: [{ required: true, message: 'Alert Type is required' }] }]">
+            <a-select-option
+              v-for="(o,index) in alertTypes"
+              :key="`alertType_${index}`"
+              :disabled="o.disabled"
+              :value="o.value">
+              <svg-icon role="img" v-if="o.value === 1" name="mail"/>
+              <svg-icon role="img" v-if="o.value === 2" name="dingding"/>
+              <svg-icon role="img" v-if="o.value === 4" name="wechat"/>
+              <svg-icon role="img" v-if="o.value === 8" name="sms"/>
+              {{ o.name }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+
+        <a-form-item
+          v-if="alertType.indexOf(1)>-1"
+          label="Alert Email"
+          :label-col="{lg: {span: 5}, sm: {span: 7}}"
+          :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+          <a-input
+            type="text"
+            placeholder="Please enter email,separate multiple emails with comma(,)"
+            allowClear
+            v-decorator="[ 'alertEmail' ]">
+            <svg-icon name="mail" slot="prefix"/>
+          </a-input>
+        </a-form-item>
+
+        <a-form-item
+          v-if="alertType.indexOf(8)>-1"
+          label="SMS"
+          :label-col="{lg: {span: 5}, sm: {span: 7}}"
+          :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+          <a-input
+            type="text"
+            placeholder="Please enter mobile number"
+            allowClear
+            v-decorator="[ 'alertSms', {rules: [{ required: true, message: 'mobile number is required' }]} ]"/>
+        </a-form-item>
+
+        <a-form-item
+          v-if="alertType.indexOf(8)>-1"
+          label="SMS Template"
+          :label-col="{lg: {span: 5}, sm: {span: 7}}"
+          :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+          <a-textarea
+            rows="4"
+            placeholder="Please enter sms template"
+            v-decorator="['alertSmsTemplate', {rules: [{ required: true, message: 'SMS Template is required' }]} ]"/>
+        </a-form-item>
+
+        <a-form-item
+          v-if="alertType.indexOf(2)>-1"
+          label="DingTask Url"
+          :label-col="{lg: {span: 5}, sm: {span: 7}}"
+          :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+          <a-input
+            type="text"
+            placeholder="Please enter DingTask Url"
+            allowClear
+            v-decorator="[ 'alertDingURL', {rules: [{ required: true, message: 'DingTask Url is required' }]} ]"/>
+        </a-form-item>
+
+        <a-form-item
+          v-if="alertType.indexOf(2)>-1"
+          label="DingTask User"
+          :label-col="{lg: {span: 5}, sm: {span: 7}}"
+          :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+          <a-input
+            type="text"
+            placeholder="Please enter DingTask receive user"
+            allowClear
+            v-decorator="[ 'alertDingUser', {rules: [{ required: true, message: 'DingTask receive user is required' }]} ]"/>
+        </a-form-item>
+
+      </template> -->
+
+      <a-form-item
+        v-if="1===2"
+        label="Configuration"
+        :label-col="{lg: {span: 5}, sm: {span: 7}}"
+        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+        <a-select
+          show-search
+          allow-clear
+          mode="multiple"
+          :max-tag-count="selectTagCount.count1"
+          placeholder="Please select parameter"
+          @change="handleChangeConf"
+          v-decorator="['configuration']">
+          <a-select-option
+            v-for="(conf,index) in configuration"
+            :key="`configuration_${index}`"
+            :value="conf.key">
+            {{ conf.name }}
+          </a-select-option>
+        </a-select>
+      </a-form-item>
+
+      <a-form-item
+        class="conf-item"
+        v-for="(conf,index) in hasOptions(configItems)"
+        :key="`config_items_${index}`"
+        :label="conf.name"
+        :label-col="{lg: {span: 5}, sm: {span: 7}}"
+        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+        <a-input
+          v-if="conf.type === 'input'"
+          type="text"
+          :placeholder="conf.placeholder"
+          v-decorator="[`${conf.name}`,{ rules:[{ validator: conf.validator, trigger:'submit'} ]}]" />
+        <a-switch
+          v-if="conf.type === 'switch'"
+          disabled
+          checked-children="ON"
+          un-checked-children="OFF"
+          v-model="switchDefaultValue"
+          v-decorator="[`${conf.name}`]" />
+        <a-input-number
+          v-if="conf.type === 'number'"
+          :min="conf.min"
+          :max="conf.max"
+          :default-value="conf.defaultValue"
+          :step="conf.step"
+          v-decorator="[`${conf.name}`,{ rules:[{ validator: conf.validator, trigger:'submit'} ]}]" />
+        <span
+          v-if="conf.type === 'switch'"
+          class="conf-switch">({{ conf.placeholder }})</span>
+        <p
+          class="conf-desc">
+          {{ conf | description }}
+        </p>
+      </a-form-item>
+
+      <a-form-item
+        label="Total Memory Options"
+        :label-col="{lg: {span: 5}, sm: {span: 7}}"
+        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+        <a-select
+          show-search
+          allow-clear
+          mode="multiple"
+          :max-tag-count="totalTagCount"
+          placeholder="Please select the resource parameters to set"
+          @change="handleChangeProcess"
+          v-decorator="['totalOptions']">
+          <a-select-opt-group
+            label="process memory(进程总内存)">
+            <a-select-option
+              v-for="(conf,index) in dynamicOptions('process-memory')"
+              :key="`process_memory_${index}`"
+              :value="conf.key">
+              {{ conf.name }}
+            </a-select-option>
+          </a-select-opt-group>
+          <a-select-opt-group
+            label="total memory(Flink 总内存)">
+            <a-select-option
+              v-for="(conf,index) in dynamicOptions('total-memory')"
+              :key="`total_memory_${index}`"
+              :value="conf.key">
+              {{ conf.name }}
+            </a-select-option>
+          </a-select-opt-group>
+        </a-select>
+        <p class="conf-desc" style="margin-bottom: -15px;margin-top: -3px">
+          <span class="note-info">
+            <a-tag color="#2db7f5" class="tag-note">Note</a-tag>
+            Explicitly configuring both <span class="note-elem">total process memory</span> and <span class="note-elem">total Flink memory</span> is not recommended. It may lead to deployment failures due to potential memory configuration conflicts. Configuring other memory components also requires caution as it can produce further configuration conflicts,
+            The easiest way is to set <span class="note-elem">total process memory</span>
+          </span>
+        </p>
+      </a-form-item>
+
+      <a-form-item
+        class="conf-item"
+        v-for="(conf,index) in hasOptions(totalItems)"
+        :key="`total_items_${index}`"
+        :label="conf.name.replace(/.memory/g,'').replace(/\./g,' ')"
+        :label-col="{lg: {span: 5}, sm: {span: 7}}"
+        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+        <a-input-number
+          v-if="conf.type === 'number'"
+          :min="conf.min"
+          :max="conf.max"
+          :default-value="conf.defaultValue"
+          :step="conf.step"
+          v-decorator="[`${conf.key}`,{ rules:[{ validator: conf.validator, trigger:'submit'} ]}]" />
+        <span
+          v-if="conf.type === 'switch'"
+          class="conf-switch">({{ conf.placeholder }})</span>
+        <p
+          class="conf-desc">
+          {{ conf | description }}
+        </p>
+      </a-form-item>
+
+      <a-form-item
+        label="JM Memory Options"
+        :label-col="{lg: {span: 5}, sm: {span: 7}}"
+        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+        <a-select
+          show-search
+          allow-clear
+          mode="multiple"
+          :max-tag-count="jmMaxTagCount"
+          placeholder="Please select the resource parameters to set"
+          @change="handleChangeJmMemory"
+          v-decorator="['jmOptions']">
+          <a-select-option
+            v-for="(conf,index) in dynamicOptions('jobmanager-memory')"
+            :key="`jm_memory_${index}`"
+            :value="conf.key">
+            {{ conf.name }}
+          </a-select-option>
+        </a-select>
+      </a-form-item>
+
+      <a-form-item
+        class="conf-item"
+        v-for="(conf,index) in hasOptions(jmMemoryItems)"
+        :key="`jm_memory_items_${index}`"
+        :label="conf.name.replace(/jobmanager.memory./g,'')"
+        :label-col="{lg: {span: 5}, sm: {span: 7}}"
+        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+        <a-input-number
+          v-if="conf.type === 'number'"
+          :min="conf.min"
+          :max="conf.max"
+          :default-value="conf.defaultValue"
+          :step="conf.step"
+          v-decorator="[`${conf.key}`,{ rules:[{ validator: conf.validator, trigger:'submit'} ]}]" />
+        <span
+          v-if="conf.type === 'switch'"
+          class="conf-switch">({{ conf.placeholder }})</span>
+        <p
+          class="conf-desc">
+          {{ conf | description }}
+        </p>
+      </a-form-item>
+
+      <a-form-item
+        label="TM Memory Options"
+        :label-col="{lg: {span: 5}, sm: {span: 7}}"
+        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+        <a-select
+          show-search
+          allow-clear
+          mode="multiple"
+          :max-tag-count="tmMaxTagCount"
+          placeholder="Please select the resource parameters to set"
+          @change="handleChangeTmMemory"
+          v-decorator="['tmOptions']">
+          <a-select-option
+            v-for="(conf,index) in dynamicOptions('taskmanager-memory')"
+            :key="`tm_memory_${index}`"
+            :value="conf.key">
+            {{ conf.name }}
+          </a-select-option>
+        </a-select>
+      </a-form-item>
+
+      <a-form-item
+        class="conf-item"
+        v-for="(conf,index) in hasOptions(tmMemoryItems)"
+        :key="`tm_memory_items_${index}`"
+        :label="conf.name.replace(/taskmanager.memory./g,'')"
+        :label-col="{lg: {span: 5}, sm: {span: 7}}"
+        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+        <a-input-number
+          v-if="conf.type === 'number'"
+          :min="conf.min"
+          :max="conf.max"
+          :default-value="conf.defaultValue"
+          :step="conf.step"
+          v-decorator="[`${conf.key}`,{ rules:[{ validator: conf.validator, trigger:'submit'} ]}]" />
+        <span
+          v-if="conf.type === 'switch'"
+          class="conf-switch">({{ conf.placeholder }})</span>
+        <p
+          class="conf-desc">
+          {{ conf | description }}
+        </p>
+      </a-form-item>
+
+      <template v-if="executionMode === 4">
+        <a-form-item
+          label="Yarn Queue"
+          :label-col="{lg: {span: 5}, sm: {span: 7}}"
+          :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+          <a-input
+            type="text"
+            allowClear
+            placeholder="Please enter yarn queue"
+            v-decorator="[ 'yarnQueue']">
+          </a-input>
+        </a-form-item>
+      </template>
 
       <a-form-item
         label="Kubernetes Pod Template"
@@ -980,305 +1432,11 @@
       </a-form-item>
 
       <a-form-item
-        label="Fault Restart Size"
-        :label-col="{lg: {span: 5}, sm: {span: 7}}"
-        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }"
-        v-show="(executionMode === null && app.executionMode !== 5 && app.executionMode !== 6) || (executionMode !== null && executionMode !== 5 && executionMode !== 6)">
-        <a-input-number
-          :min="1"
-          :step="1"
-          placeholder="restart max size"
-          v-decorator="['restartSize']" />
-      </a-form-item>
-
-      <a-form-item
-        label="CheckPoint Failure Options"
-        :label-col="{lg: {span: 5}, sm: {span: 7}}"
-        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }"
-        v-show="(executionMode === null && app.executionMode !== 5 && app.executionMode !== 6) || (executionMode !== null && executionMode !== 5 && executionMode !== 6)">
-        <a-input-group compact>
-          <a-input-number
-            :min="1"
-            :step="1"
-            placeholder="checkpoint failure rate interval"
-            v-decorator="['cpMaxFailureInterval',{ rules: [ { validator: handleCheckCheckPoint , trigger:'change'} ]}]"
-            style="width: calc(33% - 70px)"/>
-          <a-button style="width: 70px">
-            minute
-          </a-button>
-          <a-input-number
-            :min="1"
-            :step="1"
-            placeholder="max failures per interval"
-            v-decorator="['cpFailureRateInterval',{ rules: [ { validator: handleCheckCheckPoint , trigger: 'change'} ]}]"
-            style="width: calc(33% - 70px); margin-left: 1%"/>
-          <a-button style="width: 70px">
-            count
-          </a-button>
-          <a-select
-            placeholder="trigger action"
-            allowClear
-            v-decorator="['cpFailureAction',{ rules: [ { validator: handleCheckCheckPoint , trigger: 'change'} ]}]"
-            style="width: 32%;margin-left: 1%">
-            <a-select-option
-              v-for="(o,index) in cpTriggerAction"
-              :key="`cp_trigger_${index}`"
-              :value="o.value">
-              <a-icon :type="o.value === 1?'alert':'sync'"/> {{ o.name }}
-            </a-select-option>
-          </a-select>
-        </a-input-group>
-
-        <p class="conf-desc" style="margin-bottom: -15px;margin-top: -3px">
-          <span class="note-info" style="margin-bottom: 12px">
-            <a-tag color="#2db7f5" class="tag-note">Note</a-tag>
-            Operation after checkpoint failure, e.g:<br>
-            Within <span class="note-elem">5 minutes</span>(checkpoint failure rate interval), if the number of checkpoint failures reaches <span class="note-elem">10</span> (max failures per interval),action will be triggered(alert or restart job)
-          </span>
-        </p>
-      </a-form-item>
-
-      <a-form-item
-        label="Alert Email List"
-        :label-col="{lg: {span: 5}, sm: {span: 7}}"
-        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
-        <a-input
-          type="text"
-          placeholder="Please enter email,separate multiple emails with comma(,)"
-          allowClear
-          v-decorator="[ 'alertEmail',{ rules: [ { validator: handleCheckAlertEmail} ]} ]">
-          <svg-icon name="mail" slot="prefix"/>
-        </a-input>
-      </a-form-item>
-
-      <a-form-item
-        v-if="1===2"
-        label="Configuration"
-        :label-col="{lg: {span: 5}, sm: {span: 7}}"
-        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
-        <a-select
-          show-search
-          allow-clear
-          mode="multiple"
-          :max-tag-count="selectTagCount.count1"
-          placeholder="Please select parameter"
-          @change="handleChangeConf"
-          v-decorator="['configuration']">
-          <a-select-option
-            v-for="(conf,index) in configuration"
-            :key="`configuration_${index}`"
-            :value="conf.key">
-            {{ conf.name }}
-          </a-select-option>
-        </a-select>
-      </a-form-item>
-
-      <a-form-item
-        class="conf-item"
-        v-for="(conf,index) in hasOptions(configItems)"
-        :key="`config_items_${index}`"
-        :label="conf.name"
-        :label-col="{lg: {span: 5}, sm: {span: 7}}"
-        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
-        <a-input
-          v-if="conf.type === 'input'"
-          type="text"
-          :placeholder="conf.placeholder"
-          v-decorator="[`${conf.name}`,{ rules:[{ validator: conf.validator, trigger:'submit'} ]}]" />
-        <a-switch
-          v-if="conf.type === 'switch'"
-          disabled
-          checked-children="ON"
-          un-checked-children="OFF"
-          v-model="switchDefaultValue"
-          v-decorator="[`${conf.name}`]" />
-        <a-input-number
-          v-if="conf.type === 'number'"
-          :min="conf.min"
-          :max="conf.max"
-          :default-value="conf.defaultValue"
-          :step="conf.step"
-          v-decorator="[`${conf.name}`,{ rules:[{ validator: conf.validator, trigger:'submit'} ]}]" />
-        <span
-          v-if="conf.type === 'switch'"
-          class="conf-switch">({{ conf.placeholder }})</span>
-        <p
-          class="conf-desc">
-          {{ conf | description }}
-        </p>
-      </a-form-item>
-
-      <a-form-item
-        label="Total Memory Options"
-        :label-col="{lg: {span: 5}, sm: {span: 7}}"
-        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
-        <a-select
-          show-search
-          allow-clear
-          mode="multiple"
-          :max-tag-count="totalTagCount"
-          placeholder="Please select the resource parameters to set"
-          @change="handleChangeProcess"
-          v-decorator="['totalOptions']">
-          <a-select-opt-group
-            label="process memory(进程总内存)">
-            <a-select-option
-              v-for="(conf,index) in dynamicOptions('process-memory')"
-              :key="`process_memory_${index}`"
-              :value="conf.key">
-              {{ conf.name }}
-            </a-select-option>
-          </a-select-opt-group>
-          <a-select-opt-group
-            label="total memory(Flink 总内存)">
-            <a-select-option
-              v-for="(conf,index) in dynamicOptions('total-memory')"
-              :key="`total_memory_${index}`"
-              :value="conf.key">
-              {{ conf.name }}
-            </a-select-option>
-          </a-select-opt-group>
-        </a-select>
-        <p class="conf-desc" style="margin-bottom: -15px;margin-top: -3px">
-          <span class="note-info">
-            <a-tag color="#2db7f5" class="tag-note">Note</a-tag>
-            Explicitly configuring both <span class="note-elem">total process memory</span> and <span class="note-elem">total Flink memory</span> is not recommended. It may lead to deployment failures due to potential memory configuration conflicts. Configuring other memory components also requires caution as it can produce further configuration conflicts,
-            The easiest way is to set <span class="note-elem">total process memory</span>
-          </span>
-        </p>
-      </a-form-item>
-
-      <a-form-item
-        class="conf-item"
-        v-for="(conf,index) in hasOptions(totalItems)"
-        :key="`total_items_${index}`"
-        :label="conf.name.replace(/.memory/g,'').replace(/\./g,' ')"
-        :label-col="{lg: {span: 5}, sm: {span: 7}}"
-        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
-        <a-input-number
-          v-if="conf.type === 'number'"
-          :min="conf.min"
-          :max="conf.max"
-          :default-value="conf.defaultValue"
-          :step="conf.step"
-          v-decorator="[`${conf.key}`,{ rules:[{ validator: conf.validator, trigger:'submit'} ]}]" />
-        <span
-          v-if="conf.type === 'switch'"
-          class="conf-switch">({{ conf.placeholder }})</span>
-        <p
-          class="conf-desc">
-          {{ conf | description }}
-        </p>
-      </a-form-item>
-
-      <a-form-item
-        label="JM Memory Options"
-        :label-col="{lg: {span: 5}, sm: {span: 7}}"
-        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
-        <a-select
-          show-search
-          allow-clear
-          mode="multiple"
-          :max-tag-count="jmMaxTagCount"
-          placeholder="Please select the resource parameters to set"
-          @change="handleChangeJmMemory"
-          v-decorator="['jmOptions']">
-          <a-select-option
-            v-for="(conf,index) in dynamicOptions('jobmanager-memory')"
-            :key="`jm_memory_${index}`"
-            :value="conf.key">
-            {{ conf.name }}
-          </a-select-option>
-        </a-select>
-      </a-form-item>
-
-      <a-form-item
-        class="conf-item"
-        v-for="(conf,index) in hasOptions(jmMemoryItems)"
-        :key="`jm_memory_items_${index}`"
-        :label="conf.name.replace(/jobmanager.memory./g,'')"
-        :label-col="{lg: {span: 5}, sm: {span: 7}}"
-        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
-        <a-input-number
-          v-if="conf.type === 'number'"
-          :min="conf.min"
-          :max="conf.max"
-          :default-value="conf.defaultValue"
-          :step="conf.step"
-          v-decorator="[`${conf.key}`,{ rules:[{ validator: conf.validator, trigger:'submit'} ]}]" />
-        <span
-          v-if="conf.type === 'switch'"
-          class="conf-switch">({{ conf.placeholder }})</span>
-        <p
-          class="conf-desc">
-          {{ conf | description }}
-        </p>
-      </a-form-item>
-
-      <a-form-item
-        label="TM Memory Options"
-        :label-col="{lg: {span: 5}, sm: {span: 7}}"
-        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
-        <a-select
-          show-search
-          allow-clear
-          mode="multiple"
-          :max-tag-count="tmMaxTagCount"
-          placeholder="Please select the resource parameters to set"
-          @change="handleChangeTmMemory"
-          v-decorator="['tmOptions']">
-          <a-select-option
-            v-for="(conf,index) in dynamicOptions('taskmanager-memory')"
-            :key="`tm_memory_${index}`"
-            :value="conf.key">
-            {{ conf.name }}
-          </a-select-option>
-        </a-select>
-      </a-form-item>
-
-      <a-form-item
-        class="conf-item"
-        v-for="(conf,index) in hasOptions(tmMemoryItems)"
-        :key="`tm_memory_items_${index}`"
-        :label="conf.name.replace(/taskmanager.memory./g,'')"
-        :label-col="{lg: {span: 5}, sm: {span: 7}}"
-        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
-        <a-input-number
-          v-if="conf.type === 'number'"
-          :min="conf.min"
-          :max="conf.max"
-          :default-value="conf.defaultValue"
-          :step="conf.step"
-          v-decorator="[`${conf.key}`,{ rules:[{ validator: conf.validator, trigger:'submit'} ]}]" />
-        <span
-          v-if="conf.type === 'switch'"
-          class="conf-switch">({{ conf.placeholder }})</span>
-        <p
-          class="conf-desc">
-          {{ conf | description }}
-        </p>
-      </a-form-item>
-
-      <template v-if="executionMode === 4">
-        <a-form-item
-          label="Yarn Queue"
-          :label-col="{lg: {span: 5}, sm: {span: 7}}"
-          :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
-          <a-input
-            type="text"
-            allowClear
-            placeholder="Please enter yarn queue"
-            v-decorator="[ 'yarnQueue']">
-          </a-input>
-        </a-form-item>
-      </template>
-
-      <a-form-item
         label="Dynamic Option"
         :label-col="{lg: {span: 5}, sm: {span: 7}}"
         :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
         <a-textarea
-          rows="4"
+          rows="8"
           name="dynamicOptions"
           placeholder="$key=$value,If there are multiple parameters,you can new line enter them (-D <arg>)"
           v-decorator="['dynamicOptions']" />
@@ -1296,7 +1454,7 @@
         :label-col="{lg: {span: 5}, sm: {span: 7}}"
         :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
         <a-textarea
-          rows="4"
+          rows="8"
           name="args"
           placeholder="<arguments>"
           v-decorator="['args']" />
@@ -1317,7 +1475,7 @@
         :wrapper-col="{ span: 24 }"
         style="text-align: center">
         <a-button
-          @click="handleReset">
+          @click="handleReset(true)">
           Reset
         </a-button>
         <a-button
@@ -1354,14 +1512,13 @@
         </span>
         <a-button
           type="primary"
-          title="Format SQL"
-          @click="handleFormatSql">
-          <a-icon type="align-left"/>
+          icon="thunderbolt"
+          @click.native="handleFormatSql">Format
         </a-button>
         <a-button
           type="primary"
-          @click="handleBigScreenOk">
-          Apply
+          icon="fullscreen"
+          @click="handleBigScreenOk">Apply
         </a-button>
       </template>
       <div class="sql-box" id="big-sql" style="width: 100%;" :class="'syntax-' + controller.flinkSql.success"></div>
@@ -1476,8 +1633,9 @@ import {
 } from '@/api/flinkHistory'
 
 import {
-  initEditor,
+  initFlinkSqlEditor,
   initPodTemplateEditor,
+  disposeEditor,
   verifySQL,
   bigScreenOpen,
   bigScreenOk,
@@ -1493,6 +1651,12 @@ import {
   extractHostAliasFromPodTemplate,
   previewHostAlias
 } from '@/api/flinkPodtmpl'
+
+import {
+  get as getAlert,
+  listWithOutPage as listWithOutPageAlert,
+  send as sendAlert
+} from '@/api/alert'
 
 
 
@@ -1521,10 +1685,9 @@ export default {
       executionModes: [
         {mode: 'remote (standalone)', value: 1, disabled: false},
         {mode: 'yarn application', value: 4, disabled: false},
+        {mode: 'yarn session', value: 3, disabled: false},
         {mode: 'kubernetes session', value: 5, disabled: false},
         {mode: 'kubernetes application', value: 6, disabled: false},
-        {mode: 'local (coming soon)', value: 0, disabled: true},
-        {mode: 'yarn session (coming soon)', value: 3, disabled: true},
         {mode: 'yarn per-job (deprecated, please use yarn-application mode)', value: 2, disabled: false}
       ],
       cpTriggerAction: [
@@ -1560,6 +1723,17 @@ export default {
       formCompare: null,
       dependency: [],
       uploadJars: [],
+      alert: true,
+      alertTypes: [
+        {name: 'E-mail', value: 1, disabled: false},
+        {name: 'Ding Ding Task', value: 2, disabled: false},
+        {name: 'Wechat', value: 4, disabled: true},
+        {name: 'SMS', value: 8, disabled: false},
+      ],
+      alertType: [],
+      alerts: [],
+      alertId: {},
+      selectAlert: {},
       options: configOptions,
       optionsKeyMapping: {},
       optionsValueMapping: {},
@@ -1609,8 +1783,6 @@ export default {
         },
         flinkSql: {
           value: null,
-          errorLine: null,
-          errorColumn: null,
           errorMsg: null,
           errorStart: null,
           errorEnd: null,
@@ -1627,6 +1799,7 @@ export default {
           defaultValue: ''
         }
       },
+      renderFlinkSql: true,
       selectedHistoryUploadJars: [],
       historyRecord: {
         uploadJars: [],
@@ -1697,6 +1870,7 @@ export default {
     this.optionsKeyMapping = new Map()
     this.optionsValueMapping = new Map()
     this.options.forEach((item, index, array) => {
+      console.table(index)
       this.optionsKeyMapping.set(item.key, item)
       this.optionsValueMapping.set(item.name, item.key)
       this.form.getFieldDecorator(item.key, { initialValue: item.defaultValue, preserve: true })
@@ -1706,6 +1880,9 @@ export default {
     })
     listFlinkCluster().then((resp)=>{
       this.flinkClusters = resp.data
+    })
+    listWithOutPageAlert().then((resp) => {
+      this.alerts = resp.data
     })
     // load history config records
     histUploadJars().then((resp) => {
@@ -1747,6 +1924,10 @@ export default {
             this.flinkSqlHistory = resp.data
           })
         }
+        if(this.app.alertId){
+          this.selectAlert = this.alerts.filter(t => t.id == this.app.alertId)[0]
+          console.log('已选择告警：' + JSON.stringify(this.selectAlert))
+        }
         if (this.app.config && this.app.config.trim() !== '') {
           this.configOverride = Base64.decode(this.app.config)
           this.isSetConfig = true
@@ -1764,6 +1945,18 @@ export default {
       })
     },
 
+    handleCheckYarnSessionClusterId(rule, value, callback) {
+      if (value === null || value === undefined || value === '') {
+        callback(new Error('Yarn session clusterId is required'))
+      } else {
+        if (!value.startsWith('application')) {
+          callback(new Error("Yarn session clusterId is invalid, clusterId must start with 'application'.Please check"))
+        } else {
+          callback()
+        }
+      }
+    },
+
     handleFlinkVersion(id) {
       this.versionId = id
       this.scalaVersion = this.flinkEnvs.find(v => v.id === id).scalaVersion
@@ -1772,6 +1965,7 @@ export default {
 
     handleChangeMode(mode) {
       this.executionMode = mode
+      this.handleReset()
     },
 
     handleChangeConf(item) {
@@ -1788,6 +1982,14 @@ export default {
 
     handleChangeProcess(item) {
       this.totalItems = item
+    },
+
+    handleClusterId(e) {
+      this.form.setFieldsValue({jobName: e.target.value})
+    },
+
+    getExecutionCluster(executionMode){
+      return this.flinkClusters.filter(o => o.executionMode === executionMode && o.clusterState === 1)
     },
 
     handleChangeNewConfig(confFile) {
@@ -1915,6 +2117,10 @@ export default {
     },
 
     handleBigScreenClose() {
+    },
+
+    handleChangeAlertType(value) {
+      this.alertType = value
     },
 
     handleInitDependency() {
@@ -2202,12 +2408,14 @@ export default {
         k8sRestExposedType: values.k8sRestExposedType,
         executionMode: values.executionMode,
         restartSize: values.restartSize,
-        alertEmail: values.alertEmail || null,
+        // alertEmail: values.alertEmail || null,
+        alertId: values.alertId,
         description: values.description,
         k8sNamespace: values.k8sNamespace || null,
         clusterId: values.clusterId || null,
         flinkClusterId: values.flinkClusterId || null,
         flinkImage: values.flinkImage || null,
+        yarnSessionClusterId: values.yarnSessionClusterId || null
       }
       if (params.executionMode === 6) {
         params.k8sPodTemplate = this.podTemplate
@@ -2243,6 +2451,7 @@ export default {
         sqlId: this.defaultFlinkSqlId || null,
         flinkSql: this.controller.flinkSql.value,
         config: config,
+        format: this.isSetConfig ? 1 : null,
         versionId: values.versionId,
         jobName: values.jobName,
         args: values.args || null,
@@ -2256,13 +2465,15 @@ export default {
         resolveOrder: values.resolveOrder,
         k8sRestExposedType: values.k8sRestExposedType,
         restartSize: values.restartSize,
-        alertEmail: values.alertEmail|| null,
+        // alertEmail: values.alertEmail|| null,
+        alertId: values.alertId,
         executionMode: values.executionMode,
         description: values.description || null,
         k8sNamespace: values.k8sNamespace || null,
         clusterId: values.clusterId || null,
         flinkClusterId: values.flinkClusterId || null,
-        flinkImage: values.flinkImage || null
+        flinkImage: values.flinkImage || null,
+        yarnSessionClusterId: values.yarnSessionClusterId || null
       }
       if (params.executionMode === 6) {
         params.k8sPodTemplate = this.podTemplate
@@ -2618,10 +2829,10 @@ export default {
           'resolveOrder': this.app.resolveOrder,
           'versionId': this.app.versionId || null,
           'k8sRestExposedType': this.app.k8sRestExposedType,
-          'executionMode': this.app.executionMode,
+          'executionMode': this.executionMode || this.app.executionMode,
           'yarnQueue': this.app.yarnQueue,
           'restartSize': this.app.restartSize,
-          'alertEmail': this.app.alertEmail,
+          'alertId': this.selectAlert.id,
           'cpMaxFailureInterval': this.app.cpMaxFailureInterval,
           'cpFailureRateInterval': this.app.cpFailureRateInterval,
           'cpFailureAction': this.app.cpFailureAction,
@@ -2629,23 +2840,12 @@ export default {
           'flinkClusterId': this.app.flinkClusterId,
           'flinkImage': this.app.flinkImage,
           'k8sNamespace': this.app.k8sNamespace,
-          'resource': this.app.resourceFrom
+          'resource': this.app.resourceFrom,
+          'yarnSessionClusterId': this.app.yarnSessionClusterId
         })
-        if (this.app.jobType === 2) {
-          this.flinkSql.sql = this.app.flinkSql || null
-          this.flinkSql.dependency = this.app.dependency || null
-          initEditor(this,Base64.decode(this.flinkSql.sql))
-          this.handleInitDependency()
-        }
-        this.selectedHistoryUploadJars = []
-        if (this.app.executionMode === 6) {
-          this.podTemplate = this.app.k8sPodTemplate
-          this.jmPodTemplate = this.app.k8sJmPodTemplate
-          this.tmPodTemplate = this.app.k8sTmPodTemplate
-          initPodTemplateEditor(this)
-          this.useSysHadoopConf = this.app.k8sHadoopIntegration
-        }
       })
+
+      this.handleInitEditor()
 
       let parallelism = null
       let slot = null
@@ -2681,6 +2881,26 @@ export default {
         this.form.setFieldsValue({ 'jmOptions': this.jmMemoryItems })
         this.form.setFieldsValue({ 'tmOptions': this.tmMemoryItems })
         this.form.setFieldsValue(fieldValueOptions)
+      })
+    },
+
+    handleInitEditor() {
+      disposeEditor(this)
+      this.$nextTick(()=> {
+        if (this.app.jobType === 2) {
+          this.flinkSql.sql = this.app.flinkSql || null
+          this.flinkSql.dependency = this.app.dependency || null
+          initFlinkSqlEditor(this, this.controller.flinkSql.value || Base64.decode(this.flinkSql.sql))
+          this.handleInitDependency()
+        }
+        this.selectedHistoryUploadJars = []
+        if (this.executionMode === 6 || this.app.executionMode === 6) {
+          this.podTemplate = this.app.k8sPodTemplate
+          this.jmPodTemplate = this.app.k8sJmPodTemplate
+          this.tmPodTemplate = this.app.k8sTmPodTemplate
+          initPodTemplateEditor(this)
+          this.useSysHadoopConf = this.app.k8sHadoopIntegration
+        }
       })
     }
   },

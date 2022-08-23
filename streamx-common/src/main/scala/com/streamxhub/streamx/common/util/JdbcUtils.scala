@@ -1,14 +1,11 @@
 /*
- * Copyright (c) 2019 The StreamX Project
+ * Copyright 2019 The StreamX Project
  *
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *    https://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,7 +17,6 @@ package com.streamxhub.streamx.common.util
 
 import com.streamxhub.streamx.common.conf.ConfigConst._
 import com.zaxxer.hikari.{HikariConfig, HikariDataSource}
-import org.json4s.DefaultFormats
 
 import java.sql.{Connection, ResultSet, Statement}
 import java.util.Properties
@@ -37,8 +33,6 @@ import scala.util.Try
  */
 object JdbcUtils {
 
-  @transient
-  implicit private lazy val formats: DefaultFormats.type = org.json4s.DefaultFormats
 
   private val lockMap: mutable.Map[String, ReentrantLock] = new ConcurrentHashMap[String, ReentrantLock]
 
@@ -87,18 +81,6 @@ object JdbcUtils {
   def count(sql: String)(implicit jdbcConfig: Properties): Long = unique(sql).head._2.toString.toLong
 
   def count(conn: Connection, sql: String): Long = unique(conn, sql).head._2.toString.toLong
-
-  /**
-   * 直接查询一个对象
-   *
-   * @param sql
-   * @param jdbcConfig
-   * @tparam T
-   * @return
-   */
-  def select2[T](sql: String, func: ResultSet => Unit = null)(implicit jdbcConfig: Properties, manifest: Manifest[T]): List[T] = toObject[T](select(sql, func))
-
-  private[this] def toObject[T](list: List[Map[String, _]])(implicit manifest: Manifest[T]): List[T] = if (list.isEmpty) List.empty else list.map(JsonUtils.read[T])
 
   def batch(sql: Iterable[String])(implicit jdbcConfig: Properties): Int = {
     var conn: Connection = null
@@ -187,10 +169,6 @@ object JdbcUtils {
       close(result, stmt, conn)
     }
   }
-
-  def unique2[T](sql: String)(implicit jdbcConfig: Properties, manifest: Manifest[T]): T = toObject[T](List(unique(sql))).head
-
-  def unique2[T](connection: Connection, sql: String)(implicit manifest: Manifest[T]): T = toObject(List(unique(connection, sql))).head
 
   /**
    *

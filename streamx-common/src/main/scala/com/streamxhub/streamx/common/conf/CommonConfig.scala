@@ -1,14 +1,11 @@
 /*
- * Copyright (c) 2019 The StreamX Project
+ * Copyright 2019 The StreamX Project
  *
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *    https://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,6 +15,8 @@
  */
 package com.streamxhub.streamx.common.conf
 
+import java.lang.{Integer => JavaInt, Long => JavaLong}
+
 /**
  * Common Configuration
  *
@@ -25,49 +24,67 @@ package com.streamxhub.streamx.common.conf
  */
 object CommonConfig {
 
-  val STREAMX_WORKSPACE_LOCAL: ConfigOption = ConfigOption(
+  val STREAMX_WORKSPACE_LOCAL: InternalOption = InternalOption(
     key = "streamx.workspace.local",
     defaultValue = "/streamx",
-    classType = classOf[java.lang.String])
+    classType = classOf[String])
 
-  val STREAMX_WORKSPACE_REMOTE: ConfigOption = ConfigOption(
+  val STREAMX_WORKSPACE_REMOTE: InternalOption = InternalOption(
     key = "streamx.workspace.remote",
     defaultValue = "/streamx",
-    classType = classOf[java.lang.String])
+    classType = classOf[String])
 
-  val STREAMX_HADOOP_USER_NAME: ConfigOption = ConfigOption(
+  val STREAMX_HADOOP_USER_NAME: InternalOption = InternalOption(
     key = "streamx.hadoop-user-name",
     defaultValue = "hdfs",
-    classType = classOf[java.lang.String])
+    classType = classOf[String])
 
-  val DOCKER_IMAGE_NAMESPACE: ConfigOption = ConfigOption(
-    key = "streamx.docker.register.image-namespace",
-    defaultValue = "streamx",
-    classType = classOf[java.lang.String],
-    description = "namespace for docker image used in docker building env and target image register")
+  val STREAMX_PROXY_YARN_URL: InternalOption = InternalOption(
+    key = "streamx.proxy.yarn-url",
+    defaultValue = "",
+    classType = classOf[String],
+    description = "proxy yarn url. ex: knox proxy or other")
 
-  val DOCKER_MAX_CONNECTIONS: ConfigOption = ConfigOption(
+  val STREAM_YARN_AUTH: InternalOption = InternalOption(
+    key = "streamx.yarn.http-auth",
+    defaultValue = "",
+    classType = classOf[String],
+    description = "yarn http auth type. ex: sample, kerberos")
+
+  val DOCKER_MAX_CONNECTIONS: InternalOption = InternalOption(
     key = "streamx.docker.http-client.max-connections",
     defaultValue = 100,
-    classType = classOf[java.lang.Integer],
+    classType = classOf[JavaInt],
     description = "instantiating max connections for DockerHttpClient")
 
-  val DOCKER_CONNECTION_TIMEOUT_SEC: ConfigOption = ConfigOption(
+  val DOCKER_CONNECTION_TIMEOUT_SEC: InternalOption = InternalOption(
     key = "streamx.docker.http-client.connection-timeout-sec",
     defaultValue = 100L,
-    classType = classOf[java.lang.Long],
+    classType = classOf[JavaLong],
     description = "instantiating connection timeout for DockerHttpClient")
 
-  val DOCKER_RESPONSE_TIMEOUT_SEC: ConfigOption = ConfigOption(
+  val DOCKER_RESPONSE_TIMEOUT_SEC: InternalOption = InternalOption(
     key = "streamx.docker.http-client.response-timeout-sec",
     defaultValue = 120L,
-    classType = classOf[java.lang.Long],
+    classType = classOf[JavaLong],
     description = "instantiating connection timeout for DockerHttpClient")
 
-  val MAVEN_REMOTE_URL: ConfigOption = ConfigOption(
-    key = "streamx.maven.remote-url",
+  val MAVEN_REMOTE_URL: InternalOption = InternalOption(
+    key = "streamx.maven.central.repository",
     defaultValue = "https://repo1.maven.org/maven2/",
-    classType = classOf[java.lang.String],
+    classType = classOf[String],
+    description = "maven repository used for built-in compilation")
+
+  val MAVEN_AUTH_USER: InternalOption = InternalOption(
+    key = "streamx.maven.auth.user",
+    defaultValue = null,
+    classType = classOf[String],
+    description = "maven repository used for built-in compilation")
+
+  val MAVEN_AUTH_PASSWORD: InternalOption = InternalOption(
+    key = "streamx.maven.auth.password",
+    defaultValue = null,
+    classType = classOf[String],
     description = "maven repository used for built-in compilation")
 
 }

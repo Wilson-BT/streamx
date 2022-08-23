@@ -1,14 +1,11 @@
 /*
- * Copyright (c) 2019 The StreamX Project
+ * Copyright 2019 The StreamX Project
  *
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *    https://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,17 +16,22 @@
 
 package com.streamxhub.streamx.console.core.service.impl;
 
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.streamxhub.streamx.common.conf.CommonConfig;
+import com.streamxhub.streamx.common.conf.InternalConfigHolder;
 import com.streamxhub.streamx.console.core.dao.SettingMapper;
 import com.streamxhub.streamx.console.core.entity.SenderEmail;
 import com.streamxhub.streamx.console.core.entity.Setting;
 import com.streamxhub.streamx.console.core.service.SettingService;
+
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.PostConstruct;
+
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -50,6 +52,8 @@ public class SettingServiceImpl extends ServiceImpl<SettingMapper, Setting>
 
     private final Map<String, Setting> settings = new ConcurrentHashMap<>();
 
+    private final Setting defaultSetting = new Setting();
+
     @PostConstruct
     public void initSetting() {
         List<Setting> settingList = super.list();
@@ -59,11 +63,27 @@ public class SettingServiceImpl extends ServiceImpl<SettingMapper, Setting>
     @Override
     public boolean update(Setting setting) {
         try {
-            if (setting.getValue() != null) {
-                setting.setValue(setting.getValue().trim());
+            String value = setting.getValue();
+            if (value != null) {
+                if (StringUtils.isEmpty(value.trim())) {
+                    value = null;
+                } else {
+                    value = setting.getValue().trim();
+                }
             }
+            setting.setValue(value);
             this.baseMapper.updateByKey(setting);
-            settings.get(setting.getKey()).setValue(setting.getValue());
+
+            if (setting.getKey().equals(CommonConfig.MAVEN_REMOTE_URL().key())) {
+                InternalConfigHolder.set(CommonConfig.MAVEN_REMOTE_URL(), value);
+            }
+            if (setting.getKey().equals(CommonConfig.MAVEN_AUTH_USER().key())) {
+                InternalConfigHolder.set(CommonConfig.MAVEN_AUTH_USER(), value);
+            }
+            if (setting.getKey().equals(CommonConfig.MAVEN_AUTH_PASSWORD().key())) {
+                InternalConfigHolder.set(CommonConfig.MAVEN_AUTH_PASSWORD(), value);
+            }
+            settings.get(setting.getKey()).setValue(value);
             return true;
         } catch (Exception e) {
             return false;
@@ -96,27 +116,42 @@ public class SettingServiceImpl extends ServiceImpl<SettingMapper, Setting>
 
     @Override
     public String getDockerRegisterAddress() {
-        return settings.get(SettingService.KEY_DOCKER_REGISTER_ADDRESS).getValue();
+        return settings.getOrDefault(SettingService.KEY_DOCKER_REGISTER_ADDRESS, defaultSetting).getValue();
     }
 
     @Override
     public String getDockerRegisterUser() {
-        return settings.get(SettingService.KEY_DOCKER_REGISTER_USER).getValue();
+        return settings.getOrDefault(SettingService.KEY_DOCKER_REGISTER_USER, defaultSetting).getValue();
     }
 
     @Override
     public String getDockerRegisterPassword() {
-        return settings.get(SettingService.KEY_DOCKER_REGISTER_PASSWORD).getValue();
+        return settings.getOrDefault(SettingService.KEY_DOCKER_REGISTER_PASSWORD, defaultSetting).getValue();
+    }
+
+    @Override
+    public String getDockerRegisterNamespace() {
+        return settings.getOrDefault(SettingService.KEY_DOCKER_REGISTER_NAMESPACE, defaultSetting).getValue();
     }
 
     @Override
     public String getStreamXAddress() {
-        return settings.get(SettingService.KEY_STREAMX_ADDRESS).getValue();
+        return settings.getOrDefault(SettingService.KEY_STREAMX_ADDRESS, defaultSetting).getValue();
     }
 
     @Override
     public String getMavenRepository() {
-        return settings.get(SettingService.KEY_MAVEN_REPOSITORY).getValue();
+        return settings.getOrDefault(SettingService.KEY_MAVEN_REPOSITORY, defaultSetting).getValue();
+    }
+
+    @Override
+    public String getMavenAuthUser() {
+        return settings.getOrDefault(SettingService.KEY_MAVEN_AUTH_USER, defaultSetting).getValue();
+    }
+
+    @Override
+    public String getMavenAuthPassword() {
+        return settings.getOrDefault(SettingService.KEY_MAVEN_AUTH_PASSWORD, defaultSetting).getValue();
     }
 
 }

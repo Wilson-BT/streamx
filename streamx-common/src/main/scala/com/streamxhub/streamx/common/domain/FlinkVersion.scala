@@ -1,14 +1,11 @@
 /*
- * Copyright (c) 2019 The StreamX Project
+ * Copyright 2019 The StreamX Project
  *
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *    https://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,12 +15,11 @@
  */
 package com.streamxhub.streamx.common.domain
 
-import com.streamxhub.streamx.common.util.CommandUtils
-import org.apache.commons.lang3.StringUtils
+import com.streamxhub.streamx.common.util.{CommandUtils, Logger}
 
 import java.io.File
 import java.net.{URL => NetURL}
-import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
 import java.util.function.Consumer
 import java.util.regex.Pattern
 import scala.collection.JavaConversions._
@@ -32,7 +28,7 @@ import scala.collection.JavaConversions._
  * @param flinkHome actual flink home that must be a readable local path
  * @author benjobs
  */
-class FlinkVersion(val flinkHome: String) extends java.io.Serializable {
+class FlinkVersion(val flinkHome: String) extends java.io.Serializable with Logger {
 
   private[this] lazy val FLINK_VER_PATTERN = Pattern.compile("^(\\d+\\.\\d+)(\\.)?.*$")
 
@@ -42,8 +38,12 @@ class FlinkVersion(val flinkHome: String) extends java.io.Serializable {
 
   lazy val scalaVersion: String = {
     val matcher = FLINK_SCALA_VERSION_PATTERN.matcher(flinkDistJar.getName)
-    matcher.matches()
-    matcher.group(1)
+    if (matcher.matches()) {
+      matcher.group(1);
+    } else {
+      // flink 1.15 + on support scala 2.12
+       "2.12"
+    }
   }
 
   lazy val fullVersion: String = s"${version}_$scalaVersion"
@@ -60,30 +60,25 @@ class FlinkVersion(val flinkHome: String) extends java.io.Serializable {
 
   lazy val version: String = {
     val flinkVersion = new AtomicReference[String]
-    val cmd = List(
-      s"cd ${flinkLib.getAbsolutePath}",
-      s"java -classpath ${flinkDistJar.getAbsolutePath} org.apache.flink.client.cli.CliFrontend --version"
-    )
-    CommandUtils.execute(cmd, new Consumer[String]() {
+    val cmd = List(s"java -classpath ${flinkDistJar.getAbsolutePath} org.apache.flink.client.cli.CliFrontend --version")
+    val success = new AtomicBoolean(false)
+    val buffer = new StringBuilder
+    CommandUtils.execute(flinkLib.getAbsolutePath, cmd, new Consumer[String]() {
       override def accept(out: String): Unit = {
+        buffer.append(out).append("\n")
         val matcher = FLINK_VERSION_PATTERN.matcher(out)
         if (matcher.find) {
+          success.set(true)
           flinkVersion.set(matcher.group(1))
         }
       }
     })
-    val version = flinkVersion.get
-    doCheckVersion(version)
-    version
-  }
-
-  def doCheckVersion(version: String): Unit = {
-    if (StringUtils.isEmpty(version)) {
-      throw new IllegalStateException("[StreamX] parse flink version failed.")
+    logInfo(buffer.toString())
+    if (!success.get()) {
+      throw new IllegalStateException(s"[StreamX] parse flink version failed. $buffer")
     }
-    if (version.split("\\.").length != 3) {
-      throw new IllegalStateException("[StreamX] parse illegal version.")
-    }
+    buffer.clear()
+    flinkVersion.get
   }
 
   // flink major version, like "1.13", "1.14"
@@ -98,7 +93,7 @@ class FlinkVersion(val flinkHome: String) extends java.io.Serializable {
   }
 
   lazy val flinkDistJar: File = {
-    val distJar = flinkLib.listFiles().filter(_.getName.matches("flink-dist_.*\\.jar"))
+    val distJar = flinkLib.listFiles().filter(_.getName.matches("flink-dist.*\\.jar"))
     distJar match {
       case x if x.isEmpty =>
         throw new IllegalArgumentException(s"[StreamX] can no found flink-dist jar in $flinkLib")

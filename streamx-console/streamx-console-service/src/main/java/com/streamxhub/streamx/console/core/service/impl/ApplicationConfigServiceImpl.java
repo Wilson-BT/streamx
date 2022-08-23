@@ -1,14 +1,11 @@
 /*
- * Copyright (c) 2019 The StreamX Project
+ * Copyright 2019 The StreamX Project
  *
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *    https://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,13 +16,6 @@
 
 package com.streamxhub.streamx.console.core.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
-import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.streamxhub.streamx.common.util.DeflaterUtils;
 import com.streamxhub.streamx.common.util.Utils;
 import com.streamxhub.streamx.console.base.domain.Constant;
@@ -37,6 +27,14 @@ import com.streamxhub.streamx.console.core.entity.ApplicationConfig;
 import com.streamxhub.streamx.console.core.enums.EffectiveType;
 import com.streamxhub.streamx.console.core.service.ApplicationConfigService;
 import com.streamxhub.streamx.console.core.service.EffectiveService;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
@@ -236,9 +234,9 @@ public class ApplicationConfigServiceImpl
     public synchronized String readTemplate() {
         if (flinkConfTemplate == null) {
             try {
-                Resource resource = resourceLoader.getResource("classpath:flink-application.template");
+                Resource resource = resourceLoader.getResource("classpath:flink-application.conf");
                 Scanner scanner = new Scanner(resource.getInputStream());
-                StringBuffer stringBuffer = new StringBuffer();
+                StringBuilder stringBuffer = new StringBuilder();
                 while (scanner.hasNextLine()) {
                     stringBuffer.append(scanner.nextLine())
                         .append(System.lineSeparator());
@@ -247,8 +245,8 @@ public class ApplicationConfigServiceImpl
                 String template = stringBuffer.toString();
                 this.flinkConfTemplate = Base64.getEncoder().encodeToString(template.getBytes());
             } catch (Exception e) {
-                log.error("Read conf/flink-application.template failed, please check your deployment");
-                e.printStackTrace();
+                log.error("Read conf/flink-application.conf failed, please check your deployment");
+                log.error(e.getMessage(), e);
             }
         }
         return this.flinkConfTemplate;

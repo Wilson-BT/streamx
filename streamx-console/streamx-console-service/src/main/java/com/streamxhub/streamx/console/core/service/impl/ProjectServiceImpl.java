@@ -1,14 +1,11 @@
 /*
- * Copyright (c) 2019 The StreamX Project
+ * Copyright 2019 The StreamX Project
  *
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *    https://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,11 +16,6 @@
 
 package com.streamxhub.streamx.console.core.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.streamxhub.streamx.common.util.CommandUtils;
 import com.streamxhub.streamx.common.util.ThreadUtils;
 import com.streamxhub.streamx.common.util.Utils;
@@ -33,15 +25,22 @@ import com.streamxhub.streamx.console.base.domain.RestResponse;
 import com.streamxhub.streamx.console.base.util.CommonUtils;
 import com.streamxhub.streamx.console.base.util.GZipUtils;
 import com.streamxhub.streamx.console.base.util.SortUtils;
-import com.streamxhub.streamx.console.core.dao.ApplicationMapper;
 import com.streamxhub.streamx.console.core.dao.ProjectMapper;
 import com.streamxhub.streamx.console.core.entity.Application;
 import com.streamxhub.streamx.console.core.entity.Project;
 import com.streamxhub.streamx.console.core.enums.BuildState;
-import com.streamxhub.streamx.console.core.enums.DeployState;
+import com.streamxhub.streamx.console.core.enums.LaunchState;
+import com.streamxhub.streamx.console.core.service.ApplicationService;
 import com.streamxhub.streamx.console.core.service.ProjectService;
 import com.streamxhub.streamx.console.core.task.FlinkTrackingTask;
 import com.streamxhub.streamx.console.core.websocket.WebSocketEndpoint;
+import com.streamxhub.streamx.console.system.service.TeamUserService;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.CloneCommand;
 import org.eclipse.jgit.api.Git;
@@ -63,10 +62,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author benjobs
@@ -84,9 +83,12 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
     private final Map<Long, Byte> tailBeginning = new ConcurrentHashMap<>();
 
     @Autowired
-    private ApplicationMapper applicationMapper;
+    private ApplicationService applicationService;
 
-    private ExecutorService executorService = new ThreadPoolExecutor(
+    @Autowired
+    private TeamUserService groupUserService;
+
+    private final ExecutorService executorService = new ThreadPoolExecutor(
         Runtime.getRuntime().availableProcessors() * 2,
         200,
         60L,
@@ -98,10 +100,14 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
 
     @Override
     public RestResponse create(Project project) {
+        RestResponse response = RestResponse.success();
+        if (project.getTeamId() == null) {
+            return response.message("请选择团队").data(false);
+        }
         QueryWrapper<Project> queryWrapper = new QueryWrapper<>();
         queryWrapper.lambda().eq(Project::getName, project.getName());
+        queryWrapper.eq(true, "team_id", project.getTeamId());
         int count = count(queryWrapper);
-        RestResponse response = RestResponse.create();
         if (count == 0) {
             project.setDate(new Date());
             boolean status = save(project);
@@ -124,10 +130,11 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
             project.setName(projectParam.getName());
             project.setUrl(projectParam.getUrl());
             project.setBranches(projectParam.getBranches());
-            project.setUsername(projectParam.getUsername());
+            project.setUserName(projectParam.getUserName());
             project.setPassword(projectParam.getPassword());
             project.setPom(projectParam.getPom());
             project.setDescription(projectParam.getDescription());
+            project.setBuildArgs(projectParam.getBuildArgs());
             if (projectParam.getBuildState() != null) {
                 project.setBuildState(projectParam.getBuildState());
                 if (BuildState.of(projectParam.getBuildState()).equals(BuildState.NEED_REBUILD)) {
@@ -135,15 +142,15 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
                     // 更新部署状态
                     FlinkTrackingTask.refreshTracking(() -> applications.forEach((app) -> {
                         log.info("update deploy by project: {}, appName:{}", project.getName(), app.getJobName());
-                        app.setDeploy(DeployState.NEED_CHECK_AFTER_PROJECT_CHANGED.get());
-                        this.applicationMapper.updateDeploy(app);
+                        app.setLaunch(LaunchState.NEED_CHECK.get());
+                        applicationService.updateLaunch(app);
                     }));
                 }
             }
             baseMapper.updateById(project);
             return true;
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error(e.getMessage(), e);
             return false;
         }
     }
@@ -155,7 +162,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
         assert project != null;
         LambdaQueryWrapper<Application> queryWrapper = new QueryWrapper<Application>().lambda();
         queryWrapper.eq(Application::getProjectId, id);
-        Integer count = applicationMapper.selectCount(queryWrapper);
+        int count = applicationService.count(queryWrapper);
         if (count > 0) {
             return false;
         }
@@ -170,6 +177,8 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
 
     @Override
     public IPage<Project> page(Project project, RestRequest request) {
+        List<Long> groupIdList = groupUserService.getTeamIdList();
+        project.setTeamIdList(groupIdList);
         Page<Project> page = new Page<>();
         SortUtils.handlePageSort(request, page, "date", Constant.ORDER_DESC, false);
         return this.baseMapper.findProject(page, project);
@@ -181,7 +190,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
         this.baseMapper.startBuild(project);
         StringBuilder builder = new StringBuilder();
         tailBuffer.put(id, builder.append(project.getLog4BuildStart()));
-        boolean cloneSuccess = cloneSourceCode(project);
+        boolean cloneSuccess = cloneSourceCode(project, socketId);
         if (cloneSuccess) {
             executorService.execute(() -> {
                 boolean build = projectBuild(project, socketId);
@@ -195,8 +204,9 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
                         // 更新部署状态
                         FlinkTrackingTask.refreshTracking(() -> applications.forEach((app) -> {
                             log.info("update deploy by project: {}, appName:{}", project.getName(), app.getJobName());
-                            app.setDeploy(DeployState.NEED_DEPLOY_AFTER_BUILD.get());
-                            this.applicationMapper.updateDeploy(app);
+                            app.setLaunch(LaunchState.NEED_LAUNCH.get());
+                            app.setBuild(Boolean.TRUE);
+                            this.applicationService.updateLaunch(app);
                         }));
                     } catch (Exception e) {
                         this.baseMapper.failureBuild(project);
@@ -218,6 +228,9 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
         List<File> apps = new ArrayList<>();
         // 在项目路径下寻找编译完成的tar.gz(StreamX项目)文件或jar(普通,官方标准的flink工程)...
         findTarOrJar(apps, path);
+        if (apps.isEmpty()) {
+            throw new RuntimeException("[StreamX] can't find tar.gz or jar in " + path.getAbsolutePath());
+        }
         for (File app : apps) {
             String appPath = app.getAbsolutePath();
             // 1). tar.gz文件....
@@ -239,8 +252,8 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
                 // 2) .jar文件(普通,官方标准的flink工程)
                 Utils.checkJarFile(app.toURI().toURL());
                 String moduleName = app.getName().replace(".jar", "");
-                File appBase = project.getDistHome();
-                File targetDir = new File(appBase, moduleName);
+                File distHome = project.getDistHome();
+                File targetDir = new File(distHome, moduleName);
                 if (!targetDir.exists()) {
                     targetDir.mkdirs();
                 }
@@ -279,9 +292,10 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
                 }
                 File target = tar == null ? jar : tar;
                 if (target == null) {
-                    throw new RuntimeException("[StreamX] can't find tar.gz or jar in " + file.getAbsolutePath());
+                    log.warn("[StreamX] can't find tar.gz or jar in {}", file.getAbsolutePath());
+                } else {
+                    list.add(target);
                 }
-                list.add(target);
             }
 
             if (file.isDirectory()) {
@@ -323,7 +337,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
 
     @Override
     public List<Application> getApplications(Project project) {
-        return this.applicationMapper.getByProject(project);
+        return this.applicationService.getByProjectId(project.getId());
     }
 
     @Override
@@ -335,8 +349,14 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
             }
         }
         LambdaQueryWrapper<Project> wrapper = new QueryWrapper<Project>().lambda()
-            .eq(Project::getName, project.getName());
+            .eq(Project::getName, project.getName())
+            .eq(Project::getTeamId, project.getTeamId());
         return this.baseMapper.selectCount(wrapper) > 0;
+    }
+
+    @Override
+    public Long getCountByTeam(Long teamId) {
+        return baseMapper.getCountByTeam(teamId);
     }
 
     @Override
@@ -361,21 +381,26 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
         return null;
     }
 
-    private boolean cloneSourceCode(Project project) {
+    private boolean cloneSourceCode(Project project, String socketId) {
         try {
             project.cleanCloned();
             log.info("clone {}, {} starting...", project.getName(), project.getUrl());
+
+            WebSocketEndpoint.writeMessage(socketId, String.format("clone %s starting..., url: %s", project.getName(), project.getUrl()));
+
             tailBuffer.get(project.getId()).append(project.getLog4CloneStart());
             CloneCommand cloneCommand = Git.cloneRepository()
                 .setURI(project.getUrl())
                 .setDirectory(project.getAppSource())
                 .setBranch(project.getBranches());
 
-            if (CommonUtils.notEmpty(project.getUsername(), project.getPassword())) {
+            if (CommonUtils.notEmpty(project.getUserName(), project.getPassword())) {
                 cloneCommand.setCredentialsProvider(project.getCredentialsProvider());
             }
 
-            Git git = cloneCommand.call();
+            Future<Git> future = executorService.submit(cloneCommand);
+            Git git = future.get(60, TimeUnit.SECONDS);
+
             StoredConfig config = git.getRepository().getConfig();
             config.setBoolean("http", project.getUrl(), "sslVerify", false);
             config.setBoolean("https", project.getUrl(), "sslVerify", false);
@@ -383,12 +408,13 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
 
             File workTree = git.getRepository().getWorkTree();
             gitWorkTree(project.getId(), workTree, "");
-            tailBuffer.get(project.getId()).append(
-                String.format(
-                    "[StreamX] project [%s] git clone successful!\n",
-                    project.getName()
-                )
+            String successMsg = String.format(
+                "[StreamX] project [%s] git clone successful!\n",
+                project.getName()
             );
+            tailBuffer.get(project.getId()).append(successMsg);
+            WebSocketEndpoint.writeMessage(socketId, successMsg);
+            git.close();
             return true;
         } catch (Exception e) {
             String errorLog = String.format(
@@ -398,6 +424,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
                 e
             );
             tailBuffer.get(project.getId()).append(errorLog);
+            WebSocketEndpoint.writeMessage(socketId, errorLog);
             log.error(String.format("project %s clone error ", project.getName()), e);
             return false;
         }
@@ -455,12 +482,8 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
      */
     private boolean projectBuild(Project project, String socketId) {
         StringBuilder builder = tailBuffer.get(project.getId());
-        AtomicBoolean success = new AtomicBoolean(false);
-        CommandUtils.execute(project.getMavenBuildCmd(), (line) -> {
+        int code = CommandUtils.execute(project.getMavenWorkHome(), project.getMavenArgs(), (line) -> {
             builder.append(line).append("\n");
-            if (line.contains("BUILD SUCCESS")) {
-                success.set(true);
-            }
             if (tailOutMap.containsKey(project.getId())) {
                 if (tailBeginning.containsKey(project.getId())) {
                     tailBeginning.remove(project.getId());
@@ -473,7 +496,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
         closeBuildLog(project.getId());
         log.info(builder.toString());
         tailBuffer.remove(project.getId());
-        return success.get();
+        return code == 0;
     }
 
     @Override
@@ -488,4 +511,10 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
         tailBeginning.remove(id);
     }
 
+    @Override
+    public List<Project> listByTeam(Long teamId) {
+        QueryWrapper<Project> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("team_id", teamId);
+        return list(queryWrapper);
+    }
 }

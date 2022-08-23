@@ -1,14 +1,11 @@
 /*
- * Copyright (c) 2019 The StreamX Project
+ * Copyright 2019 The StreamX Project
  *
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *    https://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,6 +15,7 @@
  */
 
 import com.streamxhub.streamx.common.util.CommandUtils;
+
 import org.junit.Test;
 
 import java.io.File;
@@ -25,7 +23,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -49,7 +47,7 @@ public class RegexTest {
     public void classLoader() throws MalformedURLException {
         List<URL> libCache = new ArrayList<>(0);
         List<URL> shimsCache = new ArrayList<>(0);
-        String regex = "(^|.*)streamx-flink-shims_flink-(1.12|1.13|1.14)-(.*).jar$";
+        String regex = "(^|.*)streamx-flink-shims_flink-(1.12|1.13|1.14|1.15)-(.*).jar$";
         Pattern pattern = Pattern.compile(regex, Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
         String lib = "~/workspace/streamx/streamx-console-service-1.1.0-SNAPSHOT/lib";
 
@@ -84,22 +82,21 @@ public class RegexTest {
         final Pattern flinkVersionPattern = Pattern.compile("^Version: (.*), Commit ID: (.*)$");
         String flinkHome = System.getenv("FLINK_HOME");
         String libPath = flinkHome.concat("/lib");
-        File[] distJar = new File(libPath).listFiles(x -> x.getName().matches("flink-dist_.*\\.jar"));
+        File[] distJar = new File(libPath).listFiles(x -> x.getName().matches("flink-dist.*\\.jar"));
         if (distJar == null || distJar.length == 0) {
             throw new IllegalArgumentException("[StreamX] can no found flink-dist jar in " + libPath);
         }
         if (distJar.length > 1) {
             throw new IllegalArgumentException("[StreamX] found multiple flink-dist jar in " + libPath);
         }
-        List<String> cmd = Arrays.asList(
-                "cd ".concat(flinkHome),
-                String.format(
-                        "java -classpath %s org.apache.flink.client.cli.CliFrontend --version",
-                        distJar[0].getAbsolutePath()
-                )
+        List<String> cmd = Collections.singletonList(
+            String.format(
+                "java -classpath %s org.apache.flink.client.cli.CliFrontend --version",
+                distJar[0].getAbsolutePath()
+            )
         );
 
-        CommandUtils.execute(cmd, versionInfo -> {
+        CommandUtils.execute(flinkHome, cmd, versionInfo -> {
             Matcher matcher = flinkVersionPattern.matcher(versionInfo);
             if (matcher.find()) {
                 String flinkVersion = matcher.group(1);
